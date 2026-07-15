@@ -19,6 +19,7 @@ from ... import core
 # Generic mechanics from core, in the same order the original package's
 # top-level __init__.py exported them.
 from ...core.utils import *
+from ...core.physics import *
 from ...core.syst import *
 from ...core.classes import *
 from ...core.preprocess import *
