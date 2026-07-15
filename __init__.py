@@ -17,4 +17,3 @@ CAFPYANA_PATH = "/exp/sbnd/data/users/lnguyen/cafpyana_pi0/cafpyana"
 
 if CAFPYANA_PATH not in sys.path:
     sys.path.append(CAFPYANA_PATH)
-    sys.path.append(CAFPYANA_PATH + "/analysis_village")
