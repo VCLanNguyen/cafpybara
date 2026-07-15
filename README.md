@@ -1,15 +1,89 @@
 # cafpybara
 
-A general CAF-analysis toolkit for SBND (CAF + Python + capybara), built for
-notebook and script workflows where CAF-derived dataframes have already been
-produced (typically via [`cafpyana`](https://github.com/sungbinoh/cafpyana))
-and you want to run selection, plotting, and uncertainty studies.
+A general CAF-analysis toolkit for SBND.
+
+The plotting/selection/systematics layer that sits *after* `cafpyana` turns
+CAF ntuples into flat HDF5 dataframes.
+
+## Setup
+
+1. Get a `cafpyana` clone with dataframes already produced (see its own
+   README). `cafpybara` reads dataframes, it doesn't make them.
+2. Clone this repo anywhere — it doesn't need to sit next to `cafpyana`.
+3. Point `CAFPYANA_PATH` in `cafpybara/__init__.py` at your `cafpyana`
+   clone:
+   ```python
+   CAFPYANA_PATH = "/path/to/your/cafpyana"
+   ```
+   The repo's one hardcoded path — `cafpybara` auto-adds it to `sys.path`,
+   so imports like `from makedf.util import InFV` resolve without a manual
+   `PYTHONPATH`.
+4. Install dependencies from `pip_requirements.txt` (numpy, pandas,
+   matplotlib, scikit-learn, xgboost, pyhf, etc — versions confirmed
+   working on EAF's `venv_eaf` kernel as of 2026-07-14).
+5. Make the directory *containing* `cafpybara/` importable — run notebooks
+   from there, or add it to `sys.path`:
+   ```python
+   import sys
+   sys.path.insert(0, "/path/to/parent/of/cafpybara")
+   import cafpybara.analyses.hnlpi0 as ana
+   ```
+   On a shared environment (e.g. EAF), a confusing `KeyError` or
+   stale-looking behavior right after pulling new code usually means
+   another install is shadowing your clone on `sys.path` — check with
+   `pip show -f cafpybara`/`cafpyana` and `pip uninstall` the stale one.
+
+## Quick start
+
+```python
+import numpy as np
+import cafpybara.analyses.hnlpi0 as ana   # or .nuecc, see "Picking an analysis"
+
+df, pot, ngen = ana.load_mc(
+    "mcbnb_cv.df",
+    cuts=ana.PI0_CUT_LISTS["1shw"],
+    preprocess_fn=ana.preprocess_mcbnb,
+)
+ana.plot_var(df, ("slc", "barycenterFM", "flashTime_calib_mod"), bins=np.linspace(0, 19, 20))
+```
+
+`load_mc` reads the dataframe, applies cuts, and runs this sample's
+preprocessing; `plot_var` makes a stacked histogram using this analysis's own
+categories. Every real workflow is a longer version of this same shape —
+see the worked examples below for data overlays and systematics.
+
+## Picking an analysis
+
+**Which subpackage you import** decides the topology, not a runtime flag:
+
+```python
+import cafpybara.analyses.nuecc as ana
+# or
+import cafpybara.analyses.hnlpi0 as ana
+```
+
+Everything downstream (`ana.load_mc`, `ana.plot_var`, `ana.get_total_cov`,
+...) then carries that topology's real defaults — nueCC's `load_mc`
+defaults to `rec_key='nuecc'`, HNL/pi0's to `rec_key='rec'`. No need to pass
+topology-specific values by hand; the analysis wrapper already knows them.
+
+## Worked examples
+
+Two analyses currently exist: **nueCC** (electron-neutrino
+cross-section) and **hnlpi0** (HNL → ν + π⁰ search). Adding a third needs no
+changes to existing code — see "Adding a new analysis" below.
+
+- [`analyses/nuecc/examples/`](analyses/nuecc/examples/) —
+  `signal_plots.ipynb`, `sideband_plots.ipynb`
+- [`analyses/hnlpi0/examples/`](analyses/hnlpi0/examples/) —
+  `hnl_analysis_v6.ipynb`
+
+Each is a full pipeline: load files → apply cuts → compute systematics →
+make plots → (hnlpi0 only) export a PYHF input dictionary. Start from these
+for real analysis work, not the quick-start snippet — they show the real
+cut lists, systematics setup, and plotting config for each topology.
 
 ## Layout
-
-Mirrors cafpyana's own `analysis_village/` convention: a shared `core/` with
-zero topology defaults, and one self-contained folder per analysis under
-`analyses/`.
 
 ```
 cafpybara/
@@ -25,91 +99,118 @@ cafpybara/
       examples/           # hnl_analysis_v6.ipynb
 ```
 
-## Usage
-
-Pick an analysis by importing its subpackage -- topology choice is made by
-*which module you import*, not by a runtime parameter:
-
-```python
-import cafpybara.analyses.nuecc as ana
-# or
-import cafpybara.analyses.hnlpi0 as ana
-
-df, pot, ngen = ana.load_mc("mc.df", cuts=ana.DEFAULT_CUTS)
-ana.plot_var(df, var, bins)
-```
-
-Each village's own `io.py`/`plotting.py`/`funcs.py`/`selection.py` are thin
-wrappers pre-filling `cafpybara.core`'s generic functions with that
-topology's real defaults (e.g. nueCC's `load_mc` defaults `rec_key='nuecc'`;
-HNL/pi0's defaults `rec_key='rec'`).
+`core/` never contains topology-specific behavior. Reaching for an `if
+topology == ...` branch inside `core/`? That logic belongs in an analysis's
+own wrapper instead — see below.
 
 ## Adding a new analysis
 
 Add a new folder under `cafpybara/analyses/<name>/` with its own
-`config.py`/`analysis.py`/`io.py`/`plotting.py`/`funcs.py` following the
-existing two villages (`nuecc/`, `hnlpi0/`) as a template. No shared registry
-or base class to edit -- `cafpybara/core/` never needs to change.
+`config.py`/`analysis.py`/`io.py`/`plotting.py`/`funcs.py`, using `nuecc/`
+or `hnlpi0/` as a template. No shared registry or base class to edit —
+`cafpybara/core/` stays untouched.
 
-**Every `core.*` function that takes a topology-specific value has no
-default for it.** A new village's job is to supply real defaults for its own
-topology by wrapping the relevant `core` function. The table below lists
-every place a new village is expected to override something, gathered from
-what `nuecc/` and `hnlpi0/` each actually had to supply.
+Short version: every `core.*` function needing a topology-specific value (a
+cut list, a category dict, a table key, ...) takes it as a **required**
+argument, no default. Your analysis writes thin wrappers supplying the real
+values, so callers of `cafpybara.analyses.<name>` never need to know `core`
+exists.
 
-| File | Function / value | Must supply |
-|---|---|---|
-| `config.py` | -- | Detvar dict/file paths, in-time-cosmic file path (only if a real in-time-cosmic sample exists for this topology -- otherwise omit and have `funcs.get_total_cov` raise if `'cosmic'` is requested, see `hnlpi0/funcs.py`) |
-| `analysis.py` | cut list(s) | At least one real `CutSpec` list (e.g. `DEFAULT_CUTS`). If there's more than one valid mode with no single obviously-correct choice (like HNL/pi0's `PI0_CUT_LISTS`), don't pick one as *the* default -- make callers pass `cuts=` explicitly instead (see "Design principle" below) |
-| `analysis.py` | category dict(s) | `signal_categories`/`background_categories_<x>` (for `plot_var`'s stacking) and `signal_dict` (int-coded truth categories) |
-| `analysis.py` | `define_signal_fn` | A `define_signal(df, prefix=...)`-style function stamping truth-signal categories, used as `io.py`'s `define_signal_fn` default |
-| `preprocess.py` | `preprocess_mc`/`preprocess_data` (or a topology-specific composite) | If this topology's MC/data actually needs real fixes (flash PE/time calibration, shower energy, derived angles, etc.), build a **real** composite here -- do **not** assume `core.preprocess`'s no-op base is correct for a new topology just because it was correct for `hnlpi0`. This exact mistake shipped once for `nuecc` (see "A real bug this pattern already caught" below) |
-| `io.py` | `load_mc`/`load_data` | `rec_key` (the HDF5 table key for this topology's main slc-level table) and `preprocess_fn`/`define_signal_fn` defaults, pre-filling `core.io.load_mc`/`load_data` |
-| `io.py` | any specialized loader (e.g. `hnlpi0.load_mchnl`) | Its own `preprocess_fn` default -- **verify independently**, don't assume it matches `load_mc`'s default. `hnlpi0.load_mchnl` and `hnlpi0.load_mc` intentionally have *different* correct defaults (real vs. no-op) because they load different generator outputs |
-| `selection.py` (optional) | `select`/`select_sideband` | Only needed if this topology has one unambiguous default cut list to fall back to when `cuts=None`. Skip this file entirely if not (see `hnlpi0`, which just re-exports `core.selection.select` directly) |
-| `plotting.py` | `plot_var`/`plot_mc_data`/... | `categories` (falls back to this topology's own category dict when `pdg=`/`mode=` aren't set), `pdg_categories`, `mode_categories`, `signal_dict`, and (if this topology ever plots by truth PDG) `pdg_col` |
-| `funcs.py` | `get_total_cov` | `detvar_dict`/`detvar_files` default resolution, `uncertainty_keys` default set, and `intime_file`/`intime_key`/`offbeam_value`/`intime_preprocess_fn` **only if a real in-time-cosmic sample exists** -- otherwise raise a clear error when `'cosmic'` is requested rather than silently reaching for another topology's sample |
-| `core/detvar/process_detvars.py` | `_VILLAGE_SLC_KEY`, `_default_preprocess_fn`, `_selection_fn_map` | One new entry per dict/function, keyed by the new village's name -- this is the one place inside `core/` that legitimately needs a small edit, since `process_detvars.py`'s CLI has to resolve a village's slc_key/preprocess_fn/selection functions by name |
-| `__init__.py` | -- | `from ...core.<module> import *` for **every** `core` submodule (`utils`, `io`, `plotting`, `physics`, `syst`, `selection`, `classes`, `funcs`, `preprocess`, `detvar`) *before* this village's own `from .<module> import *` lines, so the village's real overrides correctly shadow the core generics in the flat namespace. Missing one of these has been the single most common bug in this repo so far (see below) |
+Read "Reference: the override contract" below before shipping a new
+analysis — 10 minutes, avoids missing an override.
+
+---
+
+## Reference: the override contract
+
+**Every `core.*` function taking a topology-specific value has no
+default.** A new analysis supplies its own by wrapping the relevant `core`
+function. Below is everything a new analysis is expected to override,
+gathered from what `nuecc/` and `hnlpi0/` each actually needed — listed in
+write order, each file depending only on the ones above it.
+
+**`config.py`**
+- Raw path literals only — no logic, no defaults wiring. Detvar dict/file
+  paths, plus an in-time-cosmic file path if a real sample exists for this
+  topology. `funcs.py` below consumes these and turns them into
+  `get_total_cov`'s actual defaults.
+
+**`analysis.py`**
+- At least one real cut list (a `DEFAULT_CUTS`-style `CutSpec` list). If
+  several valid modes exist with no obviously-correct choice (like HNL/pi0's
+  `PI0_CUT_LISTS`), don't pick one as *the* default — require `cuts=`
+  explicitly (see "Design principle" below).
+- Category dicts: `signal_categories`/`background_categories_<x>` (for
+  `plot_var`'s stacking) and `signal_dict` (int-coded truth categories).
+- `define_signal_fn` — a `define_signal(df, prefix=...)`-style function
+  stamping truth-signal categories, used as `io.py`'s `define_signal_fn`
+  default.
+
+**`selection.py`** (optional)
+- `select`/`select_sideband` — only needed if this topology has one
+  unambiguous default cut list for `cuts=None`. Skip the file otherwise (see
+  `hnlpi0`, which just re-exports `core.selection.select`). Depends only on
+  `analysis.py`'s cut list(s) — nothing below this needs to exist yet.
+
+**`preprocess.py`**
+- `preprocess_mc`/`preprocess_data` (or a topology-specific composite). If
+  this topology's MC/data needs real fixes (flash PE/time calibration,
+  shower energy, derived angles, etc.), build a **real** composite here —
+  don't assume `core.preprocess`'s no-op base is correct just because it
+  was correct for `hnlpi0`. This exact mistake shipped once for `nuecc`.
+
+**`io.py`**
+- `load_mc`/`load_data`: `rec_key` (this topology's main slc-level HDF5
+  table key) plus `preprocess_fn`/`define_signal_fn` defaults — wires the
+  cut list, preprocessing composite, and signal-stamping function
+  (`analysis.py`/`preprocess.py`) into one loader.
+- Any specialized loader (e.g. `hnlpi0.load_mchnl`) needs its own
+  `preprocess_fn` default, **verified independently** — don't assume it
+  matches `load_mc`'s. `hnlpi0.load_mchnl` and `hnlpi0.load_mc`
+  intentionally differ (real vs. no-op), since they load different
+  generator outputs.
+
+**`plotting.py`**
+- `plot_var`/`plot_mc_data`/...: `categories` (this topology's default when
+  `pdg=`/`mode=` aren't set), `pdg_categories`, `mode_categories`,
+  `signal_dict`, and `pdg_col` if this topology ever plots by truth PDG.
+
+**`funcs.py`**
+- `get_total_cov`: reads this analysis's `config.py` paths into the
+  `detvar_dict`/`detvar_files` default, plus `intime_file`/`intime_key`/
+  `offbeam_value`/`intime_preprocess_fn` **only if a real in-time-cosmic
+  sample exists** — otherwise raise a clear error on `'cosmic'` rather than
+  silently reaching for another topology's sample. Also supplies the
+  `uncertainty_keys` default set.
+
+**`core/detvar/process_detvars.py`**
+- One new entry per dict/function — `_SLC_KEY`,
+  `_default_preprocess_fn`, `_selection_fn_map` — keyed by the new
+  analysis's name. The one place inside `core/` that legitimately needs an
+  edit, since its CLI resolves an analysis's slc_key/preprocess_fn/selection
+  functions by name.
+
+**`__init__.py`**
+- `from ...core.<module> import *` for **every** `core` submodule
+  (`utils`, `io`, `plotting`, `physics`, `syst`, `selection`, `classes`,
+  `funcs`, `preprocess`, `detvar`), *before* this analysis's own
+  `from .<module> import *` lines, so real overrides correctly shadow the
+  core generics in the flat namespace. Missing one has been the single most
+  common bug in this repo — worth a quick `hasattr` sweep against `core`'s
+  `__all__` lists before shipping.
+- Listed last because its *real content* — re-exporting every file above —
+  can't be finalized until they all exist. (An empty stub has to exist from
+  the start so the folder is importable while you write the rest; that's a
+  trivial, content-free step, not what this entry tracks.)
 
 ### Design principle: required > silently-wrong default
 
-`core/` functions raise or require an explicit argument rather than picking
-a default, specifically so that forgetting to supply a topology-specific
-value is a loud `TypeError`/`ValueError` at the call site, not a silent
-wrong answer three layers down. When writing a village's own wrapper
-defaults, apply the same principle one level down: if there's no single
-obviously-correct default for *this* topology (multiple valid cut-list
-modes, no real in-time-cosmic sample, etc.), don't invent one -- require the
-caller to pass it, or raise a clear error explaining why it's unavailable
-(see `hnlpi0.funcs.get_total_cov` raising on `'cosmic'`, or `hnlpi0.funcs.
-get_total_cov`'s `cuts` having no default at all).
-
-### A real bug this pattern already caught
-
-Two real bugs shipped from getting the above table wrong, both found live
-(not by static checking) and both the same underlying mistake -- a village
-wrapper defaulted to `core`'s generic/no-op version of something instead of
-building and using its own real one:
-
-1. `nuecc.load_mc`/`load_data` defaulted `preprocess_fn` to `core.preprocess
-   .preprocess_mc`/`preprocess_data` (the topology-agnostic no-op, correct
-   for `hnlpi0` but not for `nuecc`) instead of a real nueCC composite
-   (flash PE/time calibration, shower energy, derived phi). No such
-   composite existed at all at first -- it was wrongly assumed nueCC's own
-   preprocessing was a no-op too, based on reading the wrong reference
-   branch. Silently dropped a data selection from 39 events to 4 on an
-   otherwise byte-identical cut chain, and affected every MC dataframe the
-   same way.
-2. `hnlpi0.load_mchnl` defaulted `preprocess_fn` to the no-op `preprocess_mc`
-   instead of its own real `preprocess_mchnl` (MeVPrtl-generator timing
-   calibration) -- found during the audit that caught bug 1, by diffing
-   every wrapper default against the reference implementation rather than
-   assuming a fix in one place meant the pattern was fixed everywhere.
-
-**Takeaway for review**: when adding or auditing a village, check every
-default in its wrapper functions against that topology's actual reference
-behavior (a prior notebook, an ancestor repo, whatever the topology's
-existing ground truth is) -- never assume a default is a no-op/safe just
-because it happens to be correct for another village, and never assume
-fixing one wrapper function fixed the pattern everywhere else it appears.
+`core/` functions require an explicit argument instead of picking a
+default, so a missing topology-specific value is a loud `TypeError`/
+`ValueError` at the call site, not a silent wrong answer three layers down.
+Apply the same principle one level down in an analysis's own wrapper
+defaults: if there's no single obviously-correct default for *this*
+topology (multiple valid cut-list modes, no real in-time-cosmic sample,
+etc.), don't invent one — require the caller to pass it, or raise a clear
+error explaining why it's unavailable (see `hnlpi0.funcs.get_total_cov`
+raising on `'cosmic'`, or its `cuts` having no default at all).
