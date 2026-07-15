@@ -495,6 +495,33 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
             "'cosmic' requested in uncertainty_keys, but intime_file/intime_key/"
             "offbeam_value were not all provided -- no topology default here."
         )
+    if include_detv and cuts is None and not select_kwargs:
+        raise ValueError(
+            "'detv' requested in uncertainty_keys, but no cuts= (or "
+            "select_kwargs=) was given.\n\n"
+            "reco_df has presumably already been filtered down to your "
+            "analysis selection before it got here. The detector-variation "
+            "comparison samples have NOT -- they get filtered separately, "
+            "right here inside get_total_cov, via cuts=/select_kwargs=. "
+            "Skip this and you're comparing a selected sample (yours) "
+            "against an unselected one (detvar's), which inflates the "
+            "'detv' uncertainty for no physical reason.\n\n"
+            "Fix: pass the same cuts you used to build reco_df, "
+            "e.g. cuts=your_village.DEFAULT_CUTS (whatever cut list you "
+            "loaded your dataframes with)."
+        )
+    resolved_intime_cuts = intime_cuts if intime_cuts is not None else cuts
+    if include_cosmic and resolved_intime_cuts is None and not select_kwargs:
+        raise ValueError(
+            "'cosmic' requested in uncertainty_keys, but no cuts=/"
+            "intime_cuts= (or select_kwargs=) was given.\n\n"
+            "Same issue as the 'detv' case above: the in-time-cosmic "
+            "sample gets filtered separately, right here, and needs the "
+            "same selection as reco_df -- otherwise you're comparing "
+            "mismatched populations.\n\n"
+            "Fix: pass cuts= (or intime_cuts= if the in-time sample needs "
+            "a different selection than reco_df), or select_kwargs=."
+        )
 
     if include_detv and detvar_dict is None:
         if detvar_files is None:
@@ -574,7 +601,7 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
             mcbnb_ngen=mcbnb_ngen, mcbnb_pot=mcbnb_pot,
             intime_file=intime_file, intime_key=intime_key, offbeam_value=offbeam_value,
             threshold=intime_threshold,
-            event_type=event_type, cuts=intime_cuts if intime_cuts is not None else cuts,
+            event_type=event_type, cuts=resolved_intime_cuts,
             **_intime_extra,
             **select_kwargs,
         )

@@ -214,3 +214,38 @@ topology (multiple valid cut-list modes, no real in-time-cosmic sample,
 etc.), don't invent one — require the caller to pass it, or raise a clear
 error explaining why it's unavailable (see `hnlpi0.funcs.get_total_cov`
 raising on `'cosmic'`, or its `cuts` having no default at all).
+
+## Common mistakes
+
+### `get_total_cov`/`SystematicsInput` needs `cuts=` too, not just your dataframe
+
+By the time `reco_df` reaches `get_total_cov`, it's already been filtered to
+your analysis selection — you passed `cuts=` to `load_mc`/`load_data`
+earlier. But if you ask for `'detv'` or `'cosmic'` uncertainties,
+`get_total_cov` also pulls in a *separate* comparison sample (a
+detector-variation sample, or an in-time-cosmic sample) — and that sample
+does **not** inherit your selection automatically. You have to tell it,
+via the same `cuts=`:
+
+```python
+# Wrong -- reco_df is selected, but the detvar comparison sample isn't.
+# Raises a ValueError explaining exactly this, rather than running.
+systs_cfg = ana.SystematicsInput(
+    mcbnb_pot=mcbnb_pot,
+    detvar_dict=detvar_dict,
+)
+
+# Right -- cuts= matches whatever you loaded reco_df with.
+systs_cfg = ana.SystematicsInput(
+    mcbnb_pot=mcbnb_pot,
+    detvar_dict=detvar_dict,
+    cuts=ana.DEFAULT_CUTS,   # whatever cut list you passed to load_mc/load_data
+)
+```
+
+Forgetting this used to fail *silently* — the comparison would quietly run
+on the full, unselected population instead of your actual selection,
+inflating the `'detv'` (or `'cosmic'`) uncertainty for no physical reason.
+It now raises a clear `ValueError` instead, so you find out immediately
+rather than after staring at a suspiciously large error bar. Same fix
+applies to `'cosmic'`, via `cuts=`/`intime_cuts=`.
