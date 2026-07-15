@@ -166,7 +166,7 @@ def flux_pot_weights(df: pd.DataFrame, mcbnb_pot: float, integrated_flux: float)
     mcbnb_pot : float
         Reference BNB POT for the sample.
     integrated_flux : float
-        Integrated nue flux in cm⁻² (from :data:`nueana.analysis.integrated_flux`).
+        Integrated nue flux in cm⁻² (from :data:`cafpybara.core.physics.integrated_flux`).
     """
     return df.weights_mc.values / (integrated_flux * (mcbnb_pot / 1e6))
 

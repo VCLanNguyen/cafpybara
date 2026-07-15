@@ -11,7 +11,7 @@ The output is a new single-split .df file.
 
 Usage
 -----
-    from nueana.exclusive import merge_ar23_weights
+    from cafpybara.analyses.nuecc.exclusive import merge_ar23_weights
 
     merge_ar23_weights(
         orig_file = 'mc_nuecc.df',

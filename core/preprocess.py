@@ -339,7 +339,7 @@ def fix_prim_shw_energy(df: pd.DataFrame, scale: float = 1.17) -> pd.DataFrame:
 def fix_sec_shw_energy(df: pd.DataFrame, scale: float = 1.17) -> pd.DataFrame:
     """Set secondary shower reco_energy from maxplane_energy * scale.
 
-    Mirrors what :func:`~nueana.selection.select` does for the primary shower.
+    Mirrors what :func:`~cafpybara.core.selection.select` does for the primary shower.
     Must be called before :func:`add_pi0` so the pi0 invariant mass uses the
     scaled energy.
 

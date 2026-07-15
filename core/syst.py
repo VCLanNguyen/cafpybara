@@ -499,14 +499,14 @@ def get_detvar_systs(detvar_dict, var, bins,
     bins : np.ndarray
         Bin edges for histogramming.
     event_type : str or None, default 'all'
-        Event mask applied after selection (see :func:`~nueana.utils.apply_event_mask`).
+        Event mask applied after selection (see :func:`~cafpybara.core.utils.apply_event_mask`).
     cuts : list of CutSpec, optional
-        Custom cut sequence forwarded to :func:`~nueana.selection.select`.
+        Custom cut sequence forwarded to :func:`~cafpybara.core.selection.select`.
         Defaults to ``DEFAULT_CUTS`` when None. Build custom lists with
-        :func:`~nueana.selection.modify_cut`, :func:`~nueana.selection.drop_cuts`,
-        or :class:`~nueana.selection.CutSpec`.
+        :func:`~cafpybara.core.selection.modify_cut`, :func:`~cafpybara.core.selection.drop_cuts`,
+        or :class:`~cafpybara.core.selection.CutSpec`.
     **select_kwargs
-        Additional keyword arguments forwarded to :func:`~nueana.selection.select`
+        Additional keyword arguments forwarded to :func:`~cafpybara.core.selection.select`
         (e.g. ``stage``, ``spring``, ``shower_scale``).
 
     Returns

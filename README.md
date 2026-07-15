@@ -5,10 +5,6 @@ notebook and script workflows where CAF-derived dataframes have already been
 produced (typically via [`cafpyana`](https://github.com/sungbinoh/cafpyana))
 and you want to run selection, plotting, and uncertainty studies.
 
-Successor to `hnl_analysis_with_cafpyana` (itself a fork of an nueCC-only
-analysis package, `nueana`) -- restructured to support multiple analysis
-topologies without hardcoding any one of them as the default.
-
 ## Layout
 
 Mirrors cafpyana's own `analysis_village/` convention: a shared `core/` with

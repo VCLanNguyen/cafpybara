@@ -1,4 +1,4 @@
-"""Plotting helpers for nueana: stacked MC, PDG/mode breakdowns, and data overlays.
+"""Plotting helpers for cafpybara.core: stacked MC, PDG/mode breakdowns, and data overlays.
 
 Functions
 ---------
@@ -7,7 +7,7 @@ data_plot_overlay : data points with Poisson errors for overlaying on MC stacks.
 plot_mc_data : combined MC+data figure with ratio subplot and chi-sq annotation.
 
 All functions accept plain and MultiIndex DataFrames. Style and display options can
-be bundled into a :class:`~nueana.classes.PlottingConfig` instance and passed as
+be bundled into a :class:`~cafpybara.core.classes.PlottingConfig` instance and passed as
 ``config``; keyword arguments take priority over the config.
 """
 from __future__ import annotations
@@ -123,14 +123,14 @@ def plot_var(df: pd.DataFrame,
     systs : True | SystematicsInput | SystematicsOutput | None, default None
         Controls how uncertainties are computed and displayed:
 
-        - ``True``: read universe columns from ``df`` via :func:`~nueana.syst.get_syst`.
+        - ``True``: read universe columns from ``df`` via :func:`~cafpybara.core.syst.get_syst`.
           If an MCstat universe is present the combined stat+syst band is drawn; otherwise
           stat and syst bands are drawn separately.
-        - :class:`~nueana.classes.SystematicsInput`: call :func:`~nueana.funcs.get_total_cov`
+        - :class:`~cafpybara.core.classes.SystematicsInput`: call :func:`~cafpybara.core.funcs.get_total_cov`
           on-the-fly with the bundled parameters and use the resulting ``rate_cov``.
-        - :class:`~nueana.classes.SystematicsOutput`: use a pre-computed result from
-          :func:`~nueana.funcs.get_total_cov`. The POT is read from
-          ``systs.mcbnb_pot`` (set automatically by :func:`~nueana.funcs.get_total_cov`).
+        - :class:`~cafpybara.core.classes.SystematicsOutput`: use a pre-computed result from
+          :func:`~cafpybara.core.funcs.get_total_cov`. The POT is read from
+          ``systs.mcbnb_pot`` (set automatically by :func:`~cafpybara.core.funcs.get_total_cov`).
         - ``None`` (default): MC stat error only (diagonal, sum-of-weights-squared).
     pdg : bool, default False
         Stack by PDG code rather than signal type.
@@ -1154,7 +1154,7 @@ def plot_detvar(
     ----------
     detvar_dict : dict
         Detector variation dictionary as returned by
-        :func:`~nueana.detvar.store.load_detvar_dict`.
+        :func:`~cafpybara.core.detvar.store.load_detvar_dict`.
     key : str
         Group name to plot (a key in ``detvar_dict``).
     var : str or tuple
@@ -1392,7 +1392,7 @@ def plot_syst_breakdown(
         Category key from ``category_dict`` to plot. If None, ranks individual
         sources by ``unc_norm`` across *all* categories combined and draws the
         top ``top_n`` -- ``syst_df``'s ``top5`` column is ranked per-category
-        (see :func:`~nueana.syst.get_syst_df`), so it can't answer "top N
+        (see :func:`~cafpybara.core.syst.get_syst_df`), so it can't answer "top N
         regardless of category"; that ranking is redone here instead.
     category_dict : dict
         Mapping of category name → style dict (``color``, ``label``, ``line``).
