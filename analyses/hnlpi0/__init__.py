@@ -29,6 +29,7 @@ from ...core.detvar import *
 # generics above with this topology's real defaults).
 from . import config
 from .analysis import *
+from .preprocess import *
 from .io import *
 from .plotting import *
 from .funcs import *

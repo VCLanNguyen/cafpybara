@@ -12,6 +12,12 @@ The flag column is cheap (one bool per row), survives ``pd.concat``, and
 is visible when inspecting the DataFrame.  Use :func:`is_fix_applied` to
 check programmatically and :func:`applied_fixes` to list all recorded fixes.
 
+Only generic, topology-independent building blocks live here.
+Generator/sample-specific bundlers (e.g. HNL/pi0's ``preprocess_mcbnb``/
+``preprocess_mchnl``/``preprocess_databnb``/``preprocess_dataoff`` and their
+``fix_bfm_flashtime_*`` helpers) live in each analysis's own
+``cafpybara/analyses/<topology>/preprocess.py``.
+
 MC-only fixes
 -------------
 - :func:`fix_flash_pe_scale`  — scale flash PEs by a calibration factor
@@ -25,12 +31,14 @@ MC + data fixes
 - :func:`fix_sec_shw_energy` — scale secondary shower energy from maxplane_energy
 - :func:`add_phi`            — derive shower and track azimuthal angles from direction
 
-Timing calibration fixes (opt-in via preprocess_mc/preprocess_data)
----------------------------------------------------------------------
-- :func:`fix_bfm_flashtime_mcbnb`  — BFM flashTime reco bugfix, BNB overlay generator
-- :func:`fix_bfm_flashtime_mchnl`  — BFM flashTime reco bugfix, MeVPrtl generator
-- :func:`fix_timing_calibration`   — adds flashTime_<prefix>/_mod via timing_correction
-- :func:`fix_databnb_timing_calibration` — drops bad-period rows, corrects per good period
+Timing calibration engines (generic; opt-in via each analysis's own preprocess bundler)
+-----------------------------------------------------------------------------------------
+- :func:`fix_timing_calibration`   — adds flashTime_<prefix>/_mod via timing_correction,
+  given caller-supplied period/offset constants (per-generator constants live in
+  :mod:`timing_calibration`, e.g. ``mcbnb_period_calib``)
+- :func:`fix_databnb_timing_calibration` — drops bad-period rows, corrects per good
+  period. Real Data BNB is the same physical data regardless of analysis, so this is
+  generic despite the name
 
 Pi0 fix (opt-in, call after preprocess_mc / preprocess_data)
 -------------------------------------------------------------
@@ -59,18 +67,12 @@ __all__ = [
     'is_fix_applied',
     'applied_fixes',
     'preprocess_mc',
-    'preprocess_mcbnb',
-    'preprocess_mchnl',
     'preprocess_data',
-    'preprocess_databnb',
-    'preprocess_dataoff',
     'fix_flash_pe_scale',
     'fix_flash_time',
     'add_phi',
     'fix_prim_shw_energy',
     'fix_sec_shw_energy',
-    'fix_bfm_flashtime_mcbnb',
-    'fix_bfm_flashtime_mchnl',
     'fix_timing_calibration',
     'fix_databnb_timing_calibration',
     'add_pi0',
@@ -179,34 +181,6 @@ def fix_flash_time(df: pd.DataFrame, offset: float = 0.19) -> pd.DataFrame:
 # Timing calibration fixes (MC + data)
 # ---------------------------------------------------------------------------
 
-def fix_bfm_flashtime_mcbnb(df: pd.DataFrame) -> pd.DataFrame:
-    """Correct the BFM flashTime reco offset for the BNB overlay generator (MC only).
-
-    Wraps :func:`timing_calibration.bugfix_mcbnb_bfm_flashtime`. Call before
-    :func:`fix_timing_calibration`. Applies to any BNB-overlay-generator sample
-    (e.g. detvar CV/DV frames), not just mcbnb_df.
-    """
-    name = 'bfm_flashtime_mcbnb'
-    if _skip_if_applied(df, name):
-        return df
-    df = tc.bugfix_mcbnb_bfm_flashtime(df)
-    return _mark_applied(df, name)
-
-
-def fix_bfm_flashtime_mchnl(df: pd.DataFrame) -> pd.DataFrame:
-    """Correct the BFM flashTime reco offset for the MeVPrtl generator (MC only).
-
-    Wraps :func:`timing_calibration.bugfix_mchnl_bfm_flashtime` -- a different
-    fixed offset than :func:`fix_bfm_flashtime_mcbnb` (subtraction only, no extra
-    beam-period term). Call before :func:`fix_timing_calibration`.
-    """
-    name = 'bfm_flashtime_mchnl'
-    if _skip_if_applied(df, name):
-        return df
-    df = tc.bugfix_mchnl_bfm_flashtime(df)
-    return _mark_applied(df, name)
-
-
 def fix_timing_calibration(df: pd.DataFrame, *, period: float, t0_offset: float,
                             prefix: str = 'calib', ifData: bool = False) -> pd.DataFrame:
     """Add calibrated flash-time columns via :func:`timing_calibration.timing_correction`.
@@ -262,117 +236,36 @@ def fix_databnb_timing_calibration(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def preprocess_mc(df: pd.DataFrame) -> pd.DataFrame:
-    """Generic MC preprocessing entry point for the HNL/pi0 ``'rec'`` table.
+    """Generic MC preprocessing entry point.
 
-    Currently a no-op: this analysis's samples don't need
-    ``fix_flash_pe_scale``/``fix_prim_shw_energy``/``fix_sec_shw_energy``/
-    ``add_phi``. Kept as the base :func:`preprocess_mcbnb`/:func:`preprocess_mchnl`
-    build on, and for import compatibility with nueCC-topology callers elsewhere
-    in this repo.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        MC DataFrame.
-    """
-    return df
-
-
-def preprocess_mcbnb(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply :func:`preprocess_mc` plus BNB overlay generator timing calibration.
-
-    Adds :func:`fix_bfm_flashtime_mcbnb` and :func:`fix_timing_calibration`
-    (``timing_calibration.mcbnb_period_calib``/``mcbnb_offset_calib``), plus
-    :func:`add_variables` (derived kinematic columns -- was a separate notebook
-    "Add New Variables" step, now applied at load time like nueCC's convention).
-    Also the correct call for any BNB-overlay-generator sample (e.g. detvar CV/DV
-    frames), not just mcbnb_df.
+    Currently a no-op -- kept as the base each analysis's own MC preprocessing
+    bundler builds on (e.g.
+    :func:`~cafpybara.analyses.hnlpi0.preprocess.preprocess_mcbnb`), and as the
+    default ``preprocess_fn`` for topologies (nueCC) that don't need any
+    additional MC-only fix at load time.
 
     Parameters
     ----------
     df : pd.DataFrame
         MC DataFrame.
     """
-    df = preprocess_mc(df)
-    df = fix_bfm_flashtime_mcbnb(df)
-    df = fix_timing_calibration(df, period=tc.mcbnb_period_calib, t0_offset=tc.mcbnb_offset_calib)
-    df = add_variables(df)
-    return df
-
-
-def preprocess_mchnl(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply :func:`preprocess_mc` plus MeVPrtl generator timing calibration.
-
-    Adds :func:`fix_bfm_flashtime_mchnl` and :func:`fix_timing_calibration`
-    (``timing_calibration.mchnl_period_calib``/``mchnl_offset_calib``), plus
-    :func:`add_variables` (derived kinematic columns -- was a separate notebook
-    "Add New Variables" step, now applied at load time like nueCC's convention).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        MC DataFrame.
-    """
-    df = preprocess_mc(df)
-    df = fix_bfm_flashtime_mchnl(df)
-    df = fix_timing_calibration(df, period=tc.mchnl_period_calib, t0_offset=tc.mchnl_offset_calib)
-    df = add_variables(df)
     return df
 
 
 def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Generic data preprocessing entry point for the HNL/pi0 ``'rec'`` table.
+    """Generic data preprocessing entry point.
 
-    Currently a no-op: this analysis's samples don't need
-    ``fix_flash_time``/``fix_prim_shw_energy``/``fix_sec_shw_energy``/``add_phi``.
-    Kept as the base :func:`preprocess_databnb`/:func:`preprocess_dataoff` build
-    on, and for import compatibility with nueCC-topology callers elsewhere in
-    this repo.
+    Currently a no-op -- kept as the base each analysis's own data
+    preprocessing bundler builds on (e.g.
+    :func:`~cafpybara.analyses.hnlpi0.preprocess.preprocess_databnb`), and as
+    the default ``preprocess_fn`` for topologies (nueCC) that don't need any
+    additional data-only fix at load time.
 
     Parameters
     ----------
     df : pd.DataFrame
         Data DataFrame (on-beam or off-beam).
     """
-    return df
-
-
-def preprocess_databnb(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply :func:`preprocess_data` plus real Data BNB's timing calibration.
-
-    Adds :func:`fix_databnb_timing_calibration` (drops bad-period rows,
-    corrects each good period individually), plus :func:`add_variables` (derived
-    kinematic columns -- was a separate notebook "Add New Variables" step, now
-    applied at load time like nueCC's convention).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Data BNB DataFrame.
-    """
-    df = preprocess_data(df)
-    df = fix_databnb_timing_calibration(df)
-    df = add_variables(df)
-    return df
-
-
-def preprocess_dataoff(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply :func:`preprocess_data` plus Data Offbeam+Light timing calibration.
-
-    Adds :func:`fix_timing_calibration` (``timing_calibration.offbeam_period_calib``/
-    ``offbeam_offset_calib``, ``ifData=True``), plus :func:`add_variables` (derived
-    kinematic columns -- was a separate notebook "Add New Variables" step, now
-    applied at load time like nueCC's convention).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Data Offbeam+Light DataFrame.
-    """
-    df = preprocess_data(df)
-    df = fix_timing_calibration(df, period=tc.offbeam_period_calib, t0_offset=tc.offbeam_offset_calib,
-                                 ifData=True)
-    df = add_variables(df)
     return df
 
 
