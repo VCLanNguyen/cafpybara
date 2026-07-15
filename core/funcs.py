@@ -306,6 +306,7 @@ def get_intime_cov(selected_df, var, bins,
                    threshold=0.05,
                    event_type: str | None = "all",
                    cuts=None,
+                   intime_preprocess_fn=preprocess_mc,
                    **select_kwargs):
     """In-time cosmic covariance from a dedicated in-time-cosmic MC sample.
 
@@ -317,14 +318,18 @@ def get_intime_cov(selected_df, var, bins,
     per-analysis wrapper) resolves which specific cut list corresponds to
     e.g. a "signal" vs. "control" region before calling here, rather than
     this function branching on a region-name string itself.
+
+    ``intime_preprocess_fn`` defaults to the generic (no-op) ``preprocess_mc``
+    -- pass a topology's own real bundler (e.g. nueCC's, which applies real
+    flash-PE/shower-energy fixes) if the in-time-cosmic sample needs it too.
     """
     mcint_dfs = load_dfs(intime_file, ['histgenevtdf', intime_key])
     scale = mcbnb_ngen / mcint_dfs['histgenevtdf'].TotalGenEvents.sum()
     mcint_df = mcint_dfs[intime_key]
-    mcint_df = preprocess_mc(mcint_df)
+    mcint_df = intime_preprocess_fn(mcint_df)
     # add_pi0() requires secshw.shw.reco_energy to already be set (its own
-    # docstring says so) -- primshw's is baked in at maker time for nueCC
-    # samples, but secshw's never was here.
+    # docstring says so) -- a no-op intime_preprocess_fn (the default) won't
+    # have set it, so ensure it explicitly regardless of what the caller passed.
     mcint_df = fix_sec_shw_energy(mcint_df)
     mcint_df = add_pi0(mcint_df)
 
@@ -379,6 +384,7 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
                   intime_key: str | None = None,
                   intime_cuts=None,
                   offbeam_value: int | None = None,
+                  intime_preprocess_fn=None,
                   define_signal_fn=None,
                   pot_norm_unc: float = POT_NORM_UNC,
                   ntargets_unc: float = NTARGETS_UNC,
@@ -568,12 +574,14 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
 
     intime_cov = None
     if include_cosmic and mcbnb_ngen is not None:
+        _intime_extra = {} if intime_preprocess_fn is None else {'intime_preprocess_fn': intime_preprocess_fn}
         intime_cov = get_intime_cov(
             selected_df=sorted_df, var=reco_var, bins=bins,
             mcbnb_ngen=mcbnb_ngen, mcbnb_pot=mcbnb_pot,
             intime_file=intime_file, intime_key=intime_key, offbeam_value=offbeam_value,
             threshold=intime_threshold,
             event_type=event_type, cuts=intime_cuts if intime_cuts is not None else cuts,
+            **_intime_extra,
             **select_kwargs,
         )
 

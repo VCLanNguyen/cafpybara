@@ -1,15 +1,16 @@
 """nueCC's own load_mc()/load_data() convenience wrappers.
 
 Pre-fills :func:`cafpybara.core.io.load_mc`/``load_data`` with nueCC's own
-``rec_key='nuecc'``, base preprocessing, and truth-signal categorisation --
-matching this village's historical defaults exactly.
+``rec_key='nuecc'``, real preprocessing (see ``analyses/nuecc/preprocess.py``
+-- not a no-op), and truth-signal categorisation -- matching this village's
+historical defaults exactly.
 """
 
 from functools import partial
 
 from ...core.io import load_mc as _core_load_mc, load_data as _core_load_data
-from ...core.preprocess import preprocess_mc, preprocess_data
 from ...core.exclusive import remove_signal_overlap
+from .preprocess import preprocess_mc, preprocess_data
 from .analysis import define_signal, signal_dict
 
 __all__ = ['load_mc', 'load_data']
@@ -32,7 +33,8 @@ def load_mc(
     """Load an MC HDF5 file. See :func:`cafpybara.core.io.load_mc` for full docs.
 
     Defaults match nueCC's historical behavior: ``rec_key='nuecc'``,
-    ``preprocess_fn=preprocess_mc`` (base, currently a no-op),
+    ``preprocess_fn=preprocess_mc`` (this village's own real bundler --
+    fix_flash_pe_scale/fix_prim_shw_energy/fix_sec_shw_energy/add_phi),
     ``define_signal_fn`` stamps nueCC's own ``define_signal``.
     """
     from ...core.preprocess import add_pi0 as _add_pi0
@@ -57,7 +59,8 @@ def load_data(
     """Load a data HDF5 file. See :func:`cafpybara.core.io.load_data` for full docs.
 
     Defaults match nueCC's historical behavior: ``rec_key='nuecc'``,
-    ``preprocess_fn=preprocess_data`` (base, currently a no-op),
+    ``preprocess_fn=preprocess_data`` (this village's own real bundler --
+    fix_flash_time/fix_prim_shw_energy/fix_sec_shw_energy/add_phi),
     ``offbeam_signal_value=signal_dict['offbeam']``.
     """
     if not onbeam and offbeam_signal_value is None:

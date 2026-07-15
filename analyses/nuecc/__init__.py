@@ -33,6 +33,7 @@ from ...core.detvar import *
 # with nueCC's real defaults).
 from . import config
 from .analysis import *
+from .preprocess import *
 from .selection import *
 from .io import *
 from .plotting import *

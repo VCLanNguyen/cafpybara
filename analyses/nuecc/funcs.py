@@ -10,6 +10,7 @@ notebooks currently rely on (they don't always pass ``cuts=`` explicitly).
 from ...core.funcs import get_total_cov as _core_get_total_cov
 from . import config
 from .analysis import DEFAULT_CUTS, define_signal, signal_dict
+from .preprocess import preprocess_mc
 
 __all__ = ['get_total_cov']
 
@@ -24,6 +25,7 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
                   cuts=None, select_region: str = "signal",
                   detvar_dict=None, detvar_files=None,
                   intime_file=None, intime_key=None, offbeam_value=None,
+                  intime_preprocess_fn=None,
                   define_signal_fn=None,
                   uncertainty_keys=None,
                   **kwargs):
@@ -55,6 +57,8 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
         intime_key = 'nuecc'
     if offbeam_value is None:
         offbeam_value = signal_dict['offbeam']
+    if intime_preprocess_fn is None:
+        intime_preprocess_fn = preprocess_mc
     if define_signal_fn is None:
         define_signal_fn = define_signal
     if uncertainty_keys is None:
@@ -64,6 +68,7 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
         reco_df, reco_var, bins, mcbnb_pot,
         cuts=cuts, detvar_dict=detvar_dict, detvar_files=detvar_files,
         intime_file=intime_file, intime_key=intime_key, offbeam_value=offbeam_value,
+        intime_preprocess_fn=intime_preprocess_fn,
         define_signal_fn=define_signal_fn, uncertainty_keys=uncertainty_keys,
         **kwargs,
     )
