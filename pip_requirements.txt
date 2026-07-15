@@ -1,0 +1,14 @@
+# Versions confirmed working in EAF's venv_eaf kernel (2026-07-14). Some are
+# unpinned -- venv_eaf is a conda build with no plain version for those.
+
+numpy==2.2.5
+pandas
+scipy==1.15.2
+uproot
+matplotlib==3.10.1
+seaborn
+scikit-learn==1.8.0
+xgboost==3.2.0
+pyhf==0.7.6
+tqdm
+tables

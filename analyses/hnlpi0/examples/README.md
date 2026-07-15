@@ -9,3 +9,5 @@ This notebook assumes dataframes have already been produced by `cafpyana` and th
 ## Related repos
 
 - Dataframe production: [sungbinoh/cafpyana — analysis_village/hnl_nuee_nupi0](https://github.com/sungbinoh/cafpyana/tree/main/analysis_village/hnl_nuee_nupi0)
+  — as of 2026-07-14, the active working branch for this analysis is
+  [`lnguyen/hnl_analysis`](https://github.com/sungbinoh/cafpyana/tree/lnguyen/hnl_analysis).
