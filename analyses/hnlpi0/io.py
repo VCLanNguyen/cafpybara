@@ -17,6 +17,7 @@ from ...core.io import load_mc as _core_load_mc, load_data as _core_load_data, l
 from ...core.preprocess import preprocess_mc, preprocess_data
 from ...core.selection import select
 from .analysis import define_signal_pi0, define_signal_hnl, signal_dict_hnl
+from .preprocess import preprocess_mchnl
 
 __all__ = ['load_mc', 'load_data', 'load_mchnl', 'correct_cosmic_weight_mevprtl_df']
 
@@ -176,7 +177,7 @@ def load_mchnl(
     mevprtl_key: str = 'mevprtl',
     rec_key: str = 'rec',
     cuts=None,
-    preprocess_fn=preprocess_mc,
+    preprocess_fn=preprocess_mchnl,
 ) -> tuple:
     """Load and preprocess an HNL MeVPrtl MC HDF5 file.
 
@@ -206,9 +207,11 @@ def load_mchnl(
         preprocessed DataFrame is returned.
     preprocess_fn : callable or None, optional
         Called as ``preprocess_fn(df)`` on the raw ``rec_key`` table before the
-        cosmic-weight correction. Defaults to the base (no-op)
-        ``preprocess_mc`` -- pass ``preprocess_mchnl`` explicitly for real
-        timing calibration. Pass ``None`` to skip.
+        cosmic-weight correction. Defaults to this village's own
+        ``preprocess_mchnl`` (real MeVPrtl-generator timing calibration --
+        matches this function's historical default on the ancestor repo's
+        HNL-focused branch, unlike ``load_mc``/``load_data`` which default to
+        the no-op base). Pass ``None`` to skip.
 
     Returns
     -------
