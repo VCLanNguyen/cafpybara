@@ -14,12 +14,21 @@ from .preprocess import preprocess_mc
 
 __all__ = ['get_total_cov']
 
+
+# ---------------------------------------------------------------------------
+# Internal helpers (not exported)
+# ---------------------------------------------------------------------------
+
 _select_region_map = {
     "signal":  config.DETVAR_DICT_SIGNAL,
     "control": config.DETVAR_DICT_CONTROL,
     "all":     config.DETVAR_DICT_FILES,
 }
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
                   cuts=None, select_region: str = "signal",

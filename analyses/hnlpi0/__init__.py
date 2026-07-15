@@ -16,8 +16,6 @@ generics with HNL/pi0's own real defaults).
 
 from ... import core
 
-# Generic mechanics from core, in the same order the original package's
-# top-level __init__.py exported them.
 from ...core.utils import *
 from ...core.io import *
 from ...core.plotting import *
@@ -29,8 +27,6 @@ from ...core.funcs import *
 from ...core.preprocess import *
 from ...core.detvar import *
 
-# This village's own config + thin wrappers/HNL-only content (shadow the core
-# generics above with this topology's real defaults).
 from . import config
 from .analysis import *
 from .preprocess import *

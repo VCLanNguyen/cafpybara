@@ -327,9 +327,6 @@ def get_intime_cov(selected_df, var, bins,
     scale = mcbnb_ngen / mcint_dfs['histgenevtdf'].TotalGenEvents.sum()
     mcint_df = mcint_dfs[intime_key]
     mcint_df = intime_preprocess_fn(mcint_df)
-    # add_pi0() requires secshw.shw.reco_energy to already be set (its own
-    # docstring says so) -- a no-op intime_preprocess_fn (the default) won't
-    # have set it, so ensure it explicitly regardless of what the caller passed.
     mcint_df = fix_sec_shw_energy(mcint_df)
     mcint_df = add_pi0(mcint_df)
 
@@ -363,7 +360,6 @@ def get_intime_cov(selected_df, var, bins,
         where=rate_hist_cv > 0,
     )
 
-    # bins above threshold keep their own uncertainty; others get a uniform floor
     large_unc = unc > threshold
     uniform_unc_val = np.max(unc[~large_unc]) if np.any(~large_unc) else np.max(unc)
     unc_final = np.where(large_unc, unc, uniform_unc_val)
@@ -500,7 +496,6 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
             "offbeam_value were not all provided -- no topology default here."
         )
 
-    # Load detvar dict if needed
     if include_detv and detvar_dict is None:
         if detvar_files is None:
             raise ValueError(
@@ -512,7 +507,6 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
                        else load_detvar_dict(detvar_files))
         print(f"  Loaded {len(detvar_dict)} detector variation entries")
 
-    # CV histograms
     sorted_df = apply_event_mask(ensure_lexsorted(reco_df, axis=1), event_type)
     _fpw = flux_pot_weights(sorted_df, mcbnb_pot, integrated_flux)
     rate_hist_cv = get_hist1d(data=sorted_df[reco_var], weights=_fpw, bins=bins)

@@ -16,8 +16,6 @@ defaults ``rec_key='nuecc'`` where ``core.io.load_mc`` has no default at all).
 
 from ... import core
 
-# Generic mechanics from core, in the same order the original package's
-# top-level __init__.py exported them.
 from ...core.utils import *
 from ...core.io import *
 from ...core.plotting import *
@@ -29,8 +27,6 @@ from ...core.funcs import *
 from ...core.preprocess import *
 from ...core.detvar import *
 
-# This village's own config + thin wrappers (shadow the core generics above
-# with nueCC's real defaults).
 from . import config
 from .analysis import *
 from .preprocess import *

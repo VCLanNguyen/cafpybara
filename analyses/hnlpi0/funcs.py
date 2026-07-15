@@ -14,6 +14,10 @@ from . import config
 __all__ = ['get_total_cov']
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
                   cuts, detvar_dict=None, detvar_files=None,
                   uncertainty_keys=None,

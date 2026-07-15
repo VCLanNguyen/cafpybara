@@ -24,6 +24,10 @@ __all__ = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Per-sample bugfixes
+# ---------------------------------------------------------------------------
+
 def fix_bfm_flashtime_mcbnb(df: pd.DataFrame) -> pd.DataFrame:
     """Correct the BFM flashTime reco offset for the BNB overlay generator (MC only).
 
@@ -52,6 +56,10 @@ def fix_bfm_flashtime_mchnl(df: pd.DataFrame) -> pd.DataFrame:
     df = tc.bugfix_mchnl_bfm_flashtime(df)
     return _mark_applied(df, name)
 
+
+# ---------------------------------------------------------------------------
+# Bundled entry points
+# ---------------------------------------------------------------------------
 
 def preprocess_mcbnb(df: pd.DataFrame) -> pd.DataFrame:
     """Apply :func:`~cafpybara.core.preprocess.preprocess_mc` plus BNB overlay

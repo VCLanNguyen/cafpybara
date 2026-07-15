@@ -196,7 +196,7 @@ def get_xsec_hists(reco_df: pd.DataFrame,
         Per-universe response (smearing) matrix. Only returned when
         ``return_response=True``.
     """
-    true_signal_df    = xsec_inputs.true_signal_df   # pre-filtered & lexsorted by XSecInputs
+    true_signal_df    = xsec_inputs.true_signal_df
     true_signal_scale = xsec_inputs.true_signal_scale
     reco_var_true     = xsec_inputs.reco_var_true
     true_var_true     = xsec_inputs.true_var_true
@@ -281,7 +281,6 @@ def get_syst_hists(reco_df: pd.DataFrame,
     cv       = np.bincount(reco_idx, weights=scaling, minlength=n_out).astype(float)
     syst_dict = {}
 
-    # Pre-compute xsec digitized indices — constant across all xsec knobs
     _xsec = None
     if (xsec_inputs is not None
             and xsec_inputs.true_signal_df is not None
@@ -302,7 +301,6 @@ def get_syst_hists(reco_df: pd.DataFrame,
                      truth_sig_idx=_truth_sig_idx, bkg_reco_idx=_bkg_reco_idx,
                      sig_hist_cv=_sig_hist_cv)
     
-    # unisim
     if len(unisim_col)>0:
         for col in tqdm(unisim_col, desc='Running through unisims'):
             weights = reco_df[col].values.astype(np.float64)
@@ -330,7 +328,6 @@ def get_syst_hists(reco_df: pd.DataFrame,
                 entry['response'] = response
             syst_dict[col[2]] = entry
 
-    # multisig (ps1/ms1 pairs)
     if len(multisig_col)>0:
         for col in tqdm(multisig_col, desc='Running through multisig'):
             ps1_col = col
@@ -366,7 +363,6 @@ def get_syst_hists(reco_df: pd.DataFrame,
                 entry['response'] = response
             syst_dict[col[2]] = entry
 
-    # multisim
     if len(multisim_col)>0:
         for col in tqdm(multisim_col, desc='Running through multisims'):
             weights = reco_df[col].values.astype(np.float64)
@@ -469,7 +465,6 @@ def mcstat(indf, nuniv: int = 100,
     )
     n_events = len(unique_seeds)
 
-    # One RNG per event; draw all nuniv universes at once (~nuniv× fewer objects).
     out = np.empty((n_events, nuniv), dtype=np.float32)
     for i, seed in enumerate(tqdm(unique_seeds, desc='MCstat universes')):
         out[i] = np.random.default_rng(int(seed)).poisson(1.0, size=nuniv)
@@ -572,16 +567,10 @@ def get_detvar_systs(detvar_dict, var, bins,
     return matrices_dict
 
 
-# Keys that should be classified as GENIE but don't contain "GENIE" in their name.
-# Extracted keys for these get a "+" suffix to flag the special treatment.
 _GENIE_ALIASES = frozenset({"SBNNuSyst", "SuSAv2"})
 
-# Full set of GENIE knob names that use the xsec (event-rate) calculation path.
 _XSEC_KNOBS = frozenset(regen_systematics + ar23p_genie_systematics)
 
-# Ordered list of (subcategory, substrings) for DetVar classification.
-# Checked top-to-bottom; first match wins. The calorimetry entry also
-# catches keys where "r" appears as a standalone token (recombination).
 _DETVAR_SUBCATEGORIES: list[tuple[str, list[str]]] = [
     ("WireMod",     ["wiremod"]),
     ("SCE",         ["sce"]),
@@ -608,21 +597,16 @@ def _extract_genie_key(key: str) -> str:
     str
         Extracted key fragment.
     """
-    # Try extracting after multisigma_ or multisim_ pattern
     for pattern in ["multisigma_", "multisim_"]:
         if pattern in key:
             return key.split(pattern, 1)[1]
     
-    # Special handling for MECq0q3InterpWeighting keys
-    # Format: MECq0q3InterpWeighting_SuSAv2To{Model}_q0binned_MECResponse_q0bin{N}
     if "MECq0q3InterpWeighting" in key:
         parts = key.split("_")
-        # parts[1] contains "SuSAv2ToValenica" or "SuSAv2ToMartini" etc.
-        model = parts[1].split("To")[1]  # Extract text after "To"
-        q0_bin = parts[-1]  # Last part is "q0bin0", "q0bin1", etc.
+        model = parts[1].split("To")[1]
+        q0_bin = parts[-1]
         return f"{model}_MEC_{q0_bin}"
     
-    # Fallback to old behavior for unrecognized patterns
     return "_".join(key.split("_")[4:])
 
 
@@ -696,11 +680,6 @@ def get_syst_df(dicts: list, cv_hist: np.ndarray) -> pd.DataFrame:
                 })
                 continue
 
-            # Extractors assume a specific underscore-separated naming convention (e.g.
-            # GENIEReWeight_SBN_v1_multisigma_<knob>) and can produce an empty string or
-            # raise IndexError on keys that don't match it (e.g. a bare "GENIE" column with
-            # no per-knob breakdown at all). Fall back to the raw key rather than losing the
-            # legend label or crashing.
             try:
                 extracted_key = _KEY_EXTRACTORS[category](raw_key)
             except IndexError:
@@ -772,11 +751,8 @@ def make_multiverse_weights(evtdf, knob_list, n_univs=100, evt_prefix=None, nudf
             out[i] = np.random.normal(0, 1)
         return out
 
-    # --- Pre-scan: identify which knobs expand so we can pre-allocate ---
-    # This avoids accumulating n_knobs × n_univs separate arrays in a dict,
-    # which would hold 2–3× the final new-column footprint simultaneously.
-    evtdf_active = []  # (knob, evtdf_knob_key, evtdf_knob_cols, kind)
-    nudf_active  = []  # (knob, nudf_knob_cols, kind)
+    evtdf_active = []
+    nudf_active  = []
     evtdf_cols_to_drop = []
     nudf_cols_to_drop  = []
 
@@ -805,7 +781,6 @@ def make_multiverse_weights(evtdf, knob_list, n_univs=100, evt_prefix=None, nudf
                 if drop_originals:
                     nudf_cols_to_drop.extend((knob,) + col for col in nudf_knob_cols)
 
-    # --- Pre-allocate output arrays; fill per-knob slice then del wgts immediately ---
     evtdf_new_arr  = np.empty((len(evtdf), len(evtdf_active) * n_univs), dtype=np.float32)
     evtdf_new_cols = []
 
@@ -841,7 +816,6 @@ def make_multiverse_weights(evtdf, knob_list, n_univs=100, evt_prefix=None, nudf
             nudf_new_cols.extend(keys)
             nudf_univ_keys[knob] = keys
 
-    # --- Build and concat new evtdf columns ---
     evtdf_nlevels = evtdf.columns.nlevels
     evtdf_padded  = [col + ("",) * (evtdf_nlevels - len(col)) for col in evtdf_new_cols]
     evtdf_new_df  = pd.DataFrame(
@@ -857,7 +831,6 @@ def make_multiverse_weights(evtdf, knob_list, n_univs=100, evt_prefix=None, nudf
             evtdf = evtdf.drop(columns=evtdf_cols_to_drop)
         return evtdf
 
-    # --- Build and concat new nudf columns ---
     nudf_nlevels = nudf.columns.nlevels
     nudf_padded  = [col + ("",) * (nudf_nlevels - len(col)) for col in nudf_new_cols]
     if nudf_padded:
@@ -869,7 +842,6 @@ def make_multiverse_weights(evtdf, knob_list, n_univs=100, evt_prefix=None, nudf
         nudf = pd.concat([nudf, nudf_new_df], axis=1)
         del nudf_new_df
 
-    # --- Synchronize nudf universe weights into evtdf ---
     nudf_nlevels  = nudf.columns.nlevels
     evtdf_nlevels = evtdf.columns.nlevels
     nudf_in_evtdf = nudf.index.isin(evtdf.index)
@@ -942,7 +914,6 @@ def slim_multisim_weights(
     df = ensure_lexsorted(df, axis=1)
     n_levels = df.columns.nlevels
 
-    # Detect which level holds the 'univ_*' token
     univ_level = -1
     for col in df.columns:
         for i, x in enumerate(col):
@@ -955,7 +926,6 @@ def slim_multisim_weights(
     if univ_level < 0:
         return df
 
-    # Collect unique multisim bases using the same logic as get_syst_hists
     seen: set = set()
     multisim_bases: list = []
     for col in df.columns:
@@ -965,7 +935,6 @@ def slim_multisim_weights(
                 seen.add(base)
                 multisim_bases.append(base)
 
-    # Group bases by requested category
     cat_bases: dict[str, list] = {cat: [] for cat in categories}
     for base in multisim_bases:
         knob = base[2]
@@ -995,7 +964,6 @@ def slim_multisim_weights(
     if not new_cols:
         return df
 
-    # Drop all original multisim columns that were folded into a slim category
     slimmed_bases = {base for cat, bases in cat_bases.items() for base in bases}
     cols_to_drop = [
         col for col in df.columns

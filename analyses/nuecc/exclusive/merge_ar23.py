@@ -92,31 +92,24 @@ def _remap_weights(ar23_weights: pd.DataFrame, mapping: pd.DataFrame) -> pd.Data
     Returns a DataFrame indexed on ['__ntuple', 'entry', 'rec.mc.nu..index', 'file_idx']
     in orig coordinate space.
     """
-    # Drop cross-split duplicates in ar23 (same ntuple/entry/nu-index in multiple files)
     n_before = len(ar23_weights)
     ar23_weights = ar23_weights[~ar23_weights.index.duplicated(keep=False)]
     n_dropped = n_before - len(ar23_weights)
     if n_dropped:
         print(f"  Warning: dropped {n_dropped} ambiguous ar23 mcnuecc rows (cross-split duplicates)")
 
-    # Flatten the ar23 index to a plain DataFrame for merging
     idx_flat = ar23_weights.index.to_frame(index=False)
-    # columns: __ntuple, entry, rec.mc.nu..index
 
-    # Rename mapping keys to match idx_flat column names
     map_renamed = mapping.rename(columns={
         'ar23_ntuple': '__ntuple',
         'ar23_entry':  'entry',
     })[['__ntuple', 'entry', 'rec.mc.nu..index', 'orig_ntuple', 'orig_entry', 'orig_file_idx']]
 
     idx_mapped = idx_flat.merge(map_renamed, on=['__ntuple', 'entry', 'rec.mc.nu..index'], how='inner')
-    # columns: __ntuple(ar23), entry(ar23), rec.mc.nu..index, orig_ntuple, orig_entry, orig_file_idx
 
-    # Select matching rows from ar23_weights (preserve MultiIndex columns)
     ar23_idx = pd.MultiIndex.from_frame(idx_mapped[['__ntuple', 'entry', 'rec.mc.nu..index']])
     matched  = ar23_weights.loc[ar23_idx].copy()
 
-    # Assign new index in orig coordinate space
     new_idx = pd.MultiIndex.from_arrays(
         [
             idx_mapped['orig_ntuple'].values,
@@ -146,7 +139,6 @@ def _join_to_nuecc(orig_nuecc: pd.DataFrame, remapped: pd.DataFrame) -> pd.DataF
     nu_idx_col = ('rec.mc.nu..index',) + ('',) * (n - 1)
 
     nu_idx_vals = orig_nuecc[nu_idx_col].values
-    # NaN nu_idx → use -1 sentinel (won't match any real neutrino index)
     nu_idx_safe = np.where(pd.isna(nu_idx_vals), -1.0, nu_idx_vals.astype(float))
 
     join_idx = pd.MultiIndex.from_arrays(
@@ -163,7 +155,6 @@ def _join_to_nuecc(orig_nuecc: pd.DataFrame, remapped: pd.DataFrame) -> pd.DataF
     wgt_values = wgts_reordered.reindex(join_idx)
     wgt_values.index = orig_nuecc.index
 
-    # Rename weight columns: 3-level tuple → n-level with ('slc', 'truth', ...) prefix
     new_cols = []
     for c in wgt_values.columns:
         new_c = ('slc', 'truth') + c
@@ -225,7 +216,6 @@ def merge_ar23_weights(
     n_orig = get_n_split(orig_file)
     n_ar23 = get_n_split(ar23_file)
 
-    # ---- Step 1: nulite matching (cheap) -------------------------------------
     print(f"Loading nulite ({n_orig} orig splits, {n_ar23} ar23 splits)...")
     orig_nulite = load_dfs(orig_file, [nulite_key], n_max_concat=n_orig)[nulite_key]
     ar23_nulite = load_dfs(ar23_file, [nulite_key], n_max_concat=n_ar23)[nulite_key]
@@ -246,19 +236,14 @@ def merge_ar23_weights(
     print(f"  {len(mapping)} unambiguous matched events after dedup")
     print(f"  overlap with orig: {len(mapping)}/{n_orig_ev} = {overlap_frac*100:.2f}%")
 
-    # Compute everything from orig_lite (already deduplicated) before releasing it
     _orig_lite_reset = orig_lite.reset_index()
 
-    # Valid internal indices for lite-dedup filter
     _orig_lite_flat   = _orig_lite_reset[['__ntuple', 'entry', 'rec.mc.nu..index', 'file_idx']]
     orig_valid_mc_idx  = pd.MultiIndex.from_frame(_orig_lite_flat)
     orig_valid_evt_idx = pd.MultiIndex.from_frame(
         _orig_lite_flat[['__ntuple', 'entry', 'file_idx']].drop_duplicates()
     )
 
-    # global_event_id: hash on (run, subrun, evt, maxE_index, maxE).
-    # Rename E→maxE and rec.mc.nu..index→maxE_index to disambiguate from mcnuecc column names.
-    # Index by full 4-level (ntuple, entry, rec.mc.nu..index, file_idx) — unique after lite dedup.
     _id_cols = _orig_lite_reset.rename(columns={'E': 'maxE', 'rec.mc.nu..index': 'maxE_index'})
     global_event_id = pd.util.hash_pandas_object(
         _id_cols[['run', 'subrun', 'evt', 'maxE_index', 'maxE']], index=False
@@ -272,7 +257,6 @@ def merge_ar23_weights(
     del orig_nulite, ar23_nulite, orig_lite, ar23_lite, _orig_lite_reset, _orig_lite_flat, _id_cols
     gc.collect()
 
-    # ---- Step 2: load all ar23 mcnuecc, remap, then free ---------------------
     print("Loading ar23 mcnuecc and remapping weights...")
     ar23_mc = load_dfs(ar23_file, [mcnuecc_key], n_max_concat=n_ar23)[mcnuecc_key]
 
@@ -289,7 +273,6 @@ def merge_ar23_weights(
     gc.collect()
     print(f"  {len(remapped)} remapped weight rows")
 
-    # ---- Step 3: join onto orig tables (all splits at once) ------------------
     print("Loading orig mcnuecc and nuecc...")
     orig_mc    = load_dfs(orig_file, [mcnuecc_key], n_max_concat=n_orig)[mcnuecc_key]
     orig_nuecc = load_dfs(orig_file, [nuecc_key],   n_max_concat=n_orig)[nuecc_key]
@@ -303,15 +286,13 @@ def merge_ar23_weights(
     new_nuecc = _join_to_nuecc(orig_nuecc, remapped)
     del orig_mc, orig_nuecc
 
-    # Capture matched indices from remapped before freeing it
-    matched_mc_idx  = remapped.index  # (ntuple, entry, rec.mc.nu..index, file_idx)
+    matched_mc_idx  = remapped.index
     matched_evt_idx = pd.MultiIndex.from_frame(
         remapped.index.to_frame(index=False)[['__ntuple', 'entry', 'file_idx']].drop_duplicates()
     )
     del remapped
     gc.collect()
 
-    # Drop rows whose lite_col key was duplicated in orig (ambiguous event identity)
     print("Dropping lite-duplicated rows from output...")
     new_mc    = new_mc[new_mc.index.isin(orig_valid_mc_idx)]
     nuecc_evt = pd.MultiIndex.from_arrays([
@@ -323,16 +304,13 @@ def merge_ar23_weights(
     del orig_valid_mc_idx, orig_valid_evt_idx, nuecc_evt
     gc.collect()
 
-    # Add global_event_id: stable per-event hash keyed by (ntuple, entry, rec.mc.nu..index, file_idx)
     n_mc    = new_mc.columns.nlevels
     n_nuecc = new_nuecc.columns.nlevels
     id_col_mc    = ('global_event_id',) + ('',) * (n_mc    - 1)
     id_col_nuecc = ('global_event_id',) + ('',) * (n_nuecc - 1)
 
-    # mcnuecc: same 4-level index — direct reindex
     new_mc[id_col_mc] = global_event_id.reindex(new_mc.index).values
 
-    # nuecc: index has a slice level instead of rec.mc.nu..index — look up via the nu index column
     nu_idx_col  = ('rec.mc.nu..index',) + ('',) * (n_nuecc - 1)
     nu_idx_vals = new_nuecc[nu_idx_col].values
     nu_idx_safe = np.where(pd.isna(nu_idx_vals), -1.0, nu_idx_vals.astype(float))
@@ -360,7 +338,6 @@ def merge_ar23_weights(
     print(f"  nuecc:   {n_nuecc_matched}/{n_nuecc_total} rows matched ({n_nuecc_matched/n_nuecc_total*100:.1f}%)"
           f"  [{n_orig_nuecc - n_nuecc_total} lite-duplicated rows dropped]")
 
-    # Keep only rows with ar23 overlap (consistent with the scaled POT), filtered by index
     new_mc = new_mc[new_mc.index.isin(matched_mc_idx)]
     nuecc_evt2 = pd.MultiIndex.from_arrays([
         new_nuecc.index.get_level_values('__ntuple'),
@@ -371,7 +348,6 @@ def merge_ar23_weights(
     del matched_mc_idx, matched_evt_idx, nuecc_evt2
     gc.collect()
 
-    # Apply signal selection to mcnuecc and preprocess+select nuecc
     print("Applying signal selection and preprocessing...")
     from ..analysis  import define_signal
     from ....core.preprocess import preprocess_mc
@@ -387,7 +363,6 @@ def merge_ar23_weights(
     print(f"  nuecc selected: {len(new_nuecc)}/{n_nuecc_pre} ({len(new_nuecc)/n_nuecc_pre*100:.1f}%)")
     gc.collect()
 
-    # ---- Step 4: write output ------------------------------------------------
     with pd.HDFStore(orig_file, mode='r') as _s:
         orig_keys = {k.lstrip('/') for k in _s.keys()}
     skip = {nuecc_key, mcnuecc_key, 'split'}

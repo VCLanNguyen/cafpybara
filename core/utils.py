@@ -25,10 +25,8 @@ def ensure_lexsorted(frame, axis):
     pandas.DataFrame
         DataFrame with sorted index/columns if MultiIndex, otherwise unchanged.
     """
-    # axis: 0 -> index, 1 -> columns
     idx = frame.index if axis == 0 else frame.columns
     if isinstance(idx, pd.MultiIndex) and getattr(idx, "lexsort_depth", 0) < idx.nlevels:
-        # sort by all levels (returns a new frame)
         return frame.sort_index(axis=axis)
     return frame
 
@@ -108,13 +106,11 @@ def apply_event_mask(df: pd.DataFrame, event_mask: str | None = None) -> pd.Data
     ValueError
         If event_mask is not one of the allowed values.
     """
-    # Normalize: convert None to "all" and validate
     if event_mask is None:
         event_mask = "all"
     if event_mask not in {"all", "signal", "background"}:
         raise ValueError("event_mask must be one of: 'all', 'signal', 'background', or None")
     
-    # Apply: filter based on signal column (0 = signal, nonzero = background)
     if event_mask == "signal":
         return df[df.signal == 0]
     if event_mask == "background":

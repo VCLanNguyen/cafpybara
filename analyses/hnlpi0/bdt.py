@@ -15,13 +15,13 @@ from sklearn.metrics import (roc_auc_score, accuracy_score, precision_score,
 
 from .analysis import signal_categories_hnl
 
-# ── Feature columns (MultiIndex tuples → flat name) ──────────────────────────
-# 1-shower topology
+
+# ---------------------------------------------------------------------------
+# Feature sets
+# ---------------------------------------------------------------------------
+
 FEAT_1SHW = {
     ('slc', 'nu_score',              '', '', '', ''): 'nu_score',
-    # ('slc', 'vertex',                'x', '', '', ''): 'vtx_x',
-    # ('slc', 'vertex',                'y', '', '', ''): 'vtx_y',
-    # ('slc', 'vertex',                'z', '', '', ''): 'vtx_z',
     ('slc', 'barycenterFM',          'score', '', '', ''): 'fm_score',
     ('slc', 'barycenterFM',         'chargeTotal', '', '', ''): 'fm_charge',
     ('slc', 'barycenterFM',         'flashPEs', '', '', ''): 'fm_flashpes',
@@ -36,19 +36,19 @@ FEAT_1SHW = {
     ('slc', 'vertex', 'transverse_distance_beam_2', '', '', ''): 'transv_dist_beam_squared',
 }
 
-# 2-shower topology (adds secshw features)
 FEAT_2SHW = {
     **FEAT_1SHW,
-   # ('secshw', 'trackScore',         '', '', '', ''): 'trk_score_2',
-   # ('secshw', 'shw', 'bestplane_energy','', '', ''): 'shw_energy_2',
-   # ('secshw', 'shw', 'bestplane_dEdx', '', '', ''): 'shw_dedx_2',
-   # ('secshw', 'shw', 'angle_z',     '', '', ''): 'shw_angle_z_2',
     ('secshw', 'shw', 'conversion_gap', '', '', ''): 'shw_conv_gap_2',
     ('secshw', 'shw', 'open_angle',  '', '', ''): 'shw_open_angle_2',
     ('secshw', 'shw', 'density',     '', '', ''): 'shw_density_2',
     ('secshw', 'shw', 'len',         '', '', ''): 'shw_len_2',
     ('slc', 'm_alt', '', '', '', ''): 'm_alt',
 }
+
+
+# ---------------------------------------------------------------------------
+# BDT training and evaluation
+# ---------------------------------------------------------------------------
 
 def score_bdt(df, model, feat_dict):
     """Apply a trained BDT to a new DataFrame and return the scores.
@@ -150,14 +150,12 @@ def train_bdt(hnl_df,
     if feat_dict is None:
         feat_dict = FEAT_1SHW
 
-    # ── Flatten MultiIndex to plain columns ───────────────────────────────────
     sig_df = hnl_df.reset_index()
     bkg_df = sm_df.reset_index()
 
     print(f"Signal slices    : {len(sig_df)}")
     print(f"Background slices: {len(bkg_df)}")
 
-    # ── Keep only feature columns present in both DataFrames ─────────────────
     avail = [c for c in feat_dict
              if c in sig_df.columns and c in bkg_df.columns]
     missing = [feat_dict[c] for c in feat_dict if c not in avail]
@@ -170,23 +168,19 @@ def train_bdt(hnl_df,
     y_sig = np.ones(len(sig_df))
     y_bkg = np.zeros(len(bkg_df))
 
-    # ── If model provided, skip training entirely ─────────────────────────────
     if model is not None:
         print("Using provided model — skipping training.")
         score_hnl = model.predict_proba(X_sig)[:, 1]
         score_sm  = model.predict_proba(X_bkg)[:, 1]
         return model, feat_names, score_hnl, score_sm
 
-    # ── Uniform weights (no physical weighting) ──────────────────────────────
     w_sig_plot = np.ones(len(sig_df))
     w_bkg_plot = np.ones(len(bkg_df))
 
-    # ── scale_pos_weight ──────────────────────────────────────────────────────
     spw_auto = len(bkg_df) / max(len(sig_df), 1)
     spw = spw_auto if scale_pos_weight is None else scale_pos_weight * spw_auto
     print(f"scale_pos_weight : {spw:.3f}  (balanced = {spw_auto:.3f})")
 
-    # ── Assemble full arrays ──────────────────────────────────────────────────
     n_sig  = len(sig_df)
     idx    = np.arange(len(X_sig) + len(X_bkg))
     X      = np.vstack([X_sig, X_bkg])
@@ -202,7 +196,6 @@ def train_bdt(hnl_df,
     w_train = np.ones(len(y_train))
     w_test  = np.ones(len(y_test))
 
-    # Boolean masks over the original DataFrames indicating test-set rows
     test_mask_hnl = np.zeros(len(sig_df), dtype=bool)
     test_mask_sm  = np.zeros(len(bkg_df), dtype=bool)
     sig_test_idx  = idx_test[idx_test < n_sig]
@@ -210,7 +203,6 @@ def train_bdt(hnl_df,
     test_mask_hnl[sig_test_idx] = True
     test_mask_sm[bkg_test_idx]  = True
 
-    # ── Hyperparameter search ─────────────────────────────────────────────────
     if hyper_search:
         print(f"\nRunning xgb.cv random search ({hyper_n_iter} iters, "
               f"metric=aucpr, early_stop={early_stopping_rounds})...")
@@ -264,7 +256,6 @@ def train_bdt(hnl_df,
     if xgb_params:
         params.update(xgb_params)
 
-    # ── Train ─────────────────────────────────────────────────────────────────
     model = xgb.XGBClassifier(**params,
                                early_stopping_rounds=early_stopping_rounds)
     model.fit(X_train, y_train,
@@ -277,12 +268,10 @@ def train_bdt(hnl_df,
     loss_train = evals['validation_0'][metric_key][:best_round]
     loss_test  = evals['validation_1'][metric_key][:best_round]
 
-    # ── Predictions ───────────────────────────────────────────────────────────
     y_pred       = model.predict(X_test)
     y_prob       = model.predict_proba(X_test)[:, 1]
     y_prob_train = model.predict_proba(X_train)[:, 1]
 
-    # ── Metrics ───────────────────────────────────────────────────────────────
     auc   = roc_auc_score(y_test, y_prob)
     aucpr = average_precision_score(y_test, y_prob)
     cm    = confusion_matrix(y_test, y_pred)
@@ -303,7 +292,6 @@ def train_bdt(hnl_df,
     print(f"{'─'*52}")
     print(f"\n{classification_report(y_test, y_pred, target_names=['Background', 'Signal'])}")
 
-    # ── Plot helpers ──────────────────────────────────────────────────────────
     def _sbnd_label(ax):
         ax.text(0.10, 1.01, "SBND HNL Analysis, Preliminary",
                 transform=ax.transAxes, fontsize=11, fontweight='bold')
@@ -311,7 +299,6 @@ def train_bdt(hnl_df,
         for spine in ax.spines.values(): spine.set_linewidth(2)
         ax.tick_params(width=2, length=8, labelsize=11)
 
-    # ── Plot 0: Loss curve ────────────────────────────────────────────────────
     iters = np.arange(1, best_round + 1)
     fig, ax = plt.subplots(figsize=(7, 5), dpi=150)
     ax.plot(iters, loss_train, color='royalblue', lw=1.5, label='Train')
@@ -323,10 +310,8 @@ def train_bdt(hnl_df,
     _style(ax); _sbnd_label(ax)
     ax.legend(fontsize=11, frameon=False)
     plt.tight_layout()
-    #plt.savefig('bdt_loss.pdf', bbox_inches='tight')
     plt.show(); plt.close()
 
-    # ── Plot 1: BDT score ─────────────────────────────────────────────────────
     sig_test  = y_prob[y_test == 1];  wt_sig_test  = w_plot_test[y_test == 1]
     bkg_test  = y_prob[y_test == 0];  wt_bkg_test  = w_plot_test[y_test == 0]
     sig_train = y_prob_train[y_train == 1]; wt_sig_train = w_plot_train[y_train == 1]
@@ -340,22 +325,14 @@ def train_bdt(hnl_df,
     ax.hist(bkg_test,  bins=bins_score, weights=wt_bkg_test,  density=normalize_plots,
             histtype='step',      color='tomato',    lw=1.5,
             label=f'{sm_label} test ({wt_bkg_test.sum():.0f})')
-    # ax.hist(sig_train, bins=bins_score, weights=wt_sig_train, density=normalize_plots,
-    #         histtype='stepfilled', color='royalblue', alpha=0.25, lw=0,
-    #         label=f'{hnl_label} train')
-    # ax.hist(bkg_train, bins=bins_score, weights=wt_bkg_train, density=normalize_plots,
-    #         histtype='stepfilled', color='tomato',    alpha=0.25, lw=0,
-    #         label=f'{sm_label} train')
     ax.set_xlabel('BDT score', fontsize=13)
     ax.set_ylabel('Normalised' if normalize_plots else 'Slices / bin', fontsize=13)
     ax.set_xlim(0, 1); ax.set_yscale('log')
     _style(ax); _sbnd_label(ax)
     ax.legend(fontsize=9, frameon=False, ncol=2)
     plt.tight_layout()
-    #plt.savefig('bdt_score.pdf', bbox_inches='tight')
     plt.show(); plt.close()
 
-    # ── Plot 2: ROC curve ─────────────────────────────────────────────────────
     fpr, tpr, _ = roc_curve(y_test, y_prob)
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
     ax.plot(fpr, tpr, color='royalblue', lw=2, label=f'AUC = {auc:.3f}')
@@ -366,10 +343,8 @@ def train_bdt(hnl_df,
     _style(ax); _sbnd_label(ax)
     ax.legend(fontsize=11, frameon=False)
     plt.tight_layout()
-    #plt.savefig('bdt_roc.pdf', bbox_inches='tight')
     plt.show(); plt.close()
 
-    # ── Plot 3: Purity & efficiency vs BDT cut ────────────────────────────────
     thresholds  = np.linspace(0, 1, 200)
     sig_mask_t  = y_test == 1
     bkg_mask_t  = y_test == 0
@@ -405,10 +380,8 @@ def train_bdt(hnl_df,
     _style(ax); _sbnd_label(ax)
     ax.legend(fontsize=10, frameon=False)
     plt.tight_layout()
-    #plt.savefig('bdt_purity_vs_cut.pdf', bbox_inches='tight')
     plt.show(); plt.close()
 
-    # ── Plot 4: Feature importance ────────────────────────────────────────────
     importance = model.feature_importances_
     order      = np.argsort(importance)
     names_ord  = [feat_names[i] for i in order]
@@ -417,12 +390,9 @@ def train_bdt(hnl_df,
     ax.set_xlabel('Feature importance (gain)', fontsize=12)
     _style(ax); _sbnd_label(ax)
     plt.tight_layout()
-    #plt.savefig('bdt_feature_importance.pdf', bbox_inches='tight')
     plt.show(); plt.close()
 
-    # ── Plot 5: Correlation matrices ──────────────────────────────────────────
 
-    # Remove NaN rows per-class for correlation computation
     df_sig_feat = pd.DataFrame(X_sig, columns=feat_names).dropna()
     df_bkg_feat = pd.DataFrame(X_bkg, columns=feat_names).dropna()
 
@@ -448,7 +418,6 @@ def train_bdt(hnl_df,
         ax.set_xticklabels(feat_names, rotation=45, ha='right', fontsize=9)
         ax.set_yticklabels(feat_names, fontsize=9)
 
-        # Annotate cells with correlation value
         for i in range(n_feat):
             for j in range(n_feat):
                 val = corr_mat.values[i, j]
@@ -457,16 +426,13 @@ def train_bdt(hnl_df,
                         fontsize=7, color=color)
 
         ax.set_title(f'Feature correlation — {label_str}', fontsize=12, pad=8)
-        #_sbnd_label(ax)
         _style(ax)
         plt.tight_layout()
-        #plt.savefig(fname, bbox_inches='tight')
         plt.show(); plt.close()
 
     score_hnl = model.predict_proba(X_sig)[:, 1]
     score_sm  = model.predict_proba(X_bkg)[:, 1]
 
-    # ── Save model ────────────────────────────────────────────────────────────
     if save_model:
         os.makedirs(save_dir, exist_ok=True)
         model_path = os.path.join(save_dir, f"{save_tag}_model.pkl")
@@ -586,7 +552,6 @@ def eval_bdt(model,
             return float(sub[_wcol].fillna(0).sum())
         return float(len(sub))
 
-    # Build feature matrices (MultiIndex → flat names)
     _lookup_dicts = [feat_dict] if feat_dict is not None else [FEAT_1SHW, FEAT_2SHW]
     name_to_col   = {v: k for d in _lookup_dicts for k, v in d.items()}
     ordered_cols  = [name_to_col[n] for n in feat_names if n in name_to_col]
@@ -607,7 +572,6 @@ def eval_bdt(model,
     if U2 is not None:
         title_str += f"  |  |U2| = {U2:.2e}"
 
-    # ── Dense sweep to build purity vs threshold curve ────────────────────────
     thresholds = np.linspace(0, 1, 2000)
     purity_curve = []
     for thr in thresholds:
@@ -616,7 +580,6 @@ def eval_bdt(model,
         purity_curve.append(100 * wh / (wh + ws) if (wh + ws) > 0 else 0.)
     purity_curve = np.array(purity_curve)
 
-    # ── For each purity target find the lowest threshold that achieves it ─────
     cnt_fmt = "{:.3e}".format
     sep     = "─" * 82
     header  = (f"  {'target pur%':>11}  {'BDT cut':>8}  {'HNL':>14}  "
@@ -627,12 +590,11 @@ def eval_bdt(model,
     print(sep)
 
     for pur_target in purity_targets:
-        # find indices where purity >= target, take the one with lowest threshold
         idx = np.where(purity_curve >= pur_target)[0]
         if len(idx) == 0:
             print(f"  {pur_target:>10.0f}%  {'no cut achieves this purity':>60}")
             continue
-        best_idx = idx[0]          # lowest threshold (most signal kept)
+        best_idx = idx[0]
         cut      = thresholds[best_idx]
         mh = score_hnl >= cut
         ms = score_sm  >= cut
@@ -647,7 +609,6 @@ def eval_bdt(model,
               f"{purity:>7.2f}%  {punzi:>10.4f}")
     print(sep)
 
-    # ── BDT score distribution (POT-scaled) ───────────────────────────────────
     _score_col = ('slc', 'bdt_score', '', '', '', '')
     _wcol      = ('weights_mc', '', '', '', '', '')
 
@@ -676,7 +637,6 @@ def eval_bdt(model,
         plt.tight_layout()
         plt.show()
 
-    # Variable plot after BDT cut
     if plot_var is not None:
         if plot_bins is None:
             raise ValueError("plot_bins is required when plot_var is set")
@@ -687,14 +647,9 @@ def eval_bdt(model,
         hnl_sel = hnl_df[np.array(mh_plot)]
         sm_sel  = sm_df[np.array(ms_plot)]
 
-        # Relabel the HNL entry for this plot only (local dict copy; no global mutation).
-        # Split into a background-only dict (for the mc stack) and an hnl-only dict (for
-        # the step overlay) so each plot_var call only iterates its own categories --
-        # sharing one dict across both calls double-legends every category.
         _categories = plot_kwargs.pop('categories', signal_categories_hnl)
         _mc_categories  = {k: v for k, v in _categories.items() if k not in ('hnl', 'hnlcosmic')}
         _hnl_categories = {'hnl': {**_categories['hnl'], 'label': hnl_label}}
-        # Merge legend_kwargs: force ncol=1 unless caller overrides it
         _lkw = {'ncol': 1, **plot_kwargs.pop('legend_kwargs', {})}
         fig, ax = plot_mc_hnl(
             mc_df         = sm_sel,

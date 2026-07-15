@@ -64,16 +64,9 @@ _ALL_SELECTIONS = ["preprocess", "signal", "sideband", "preselect"]
 
 _DETVAR_RE = re.compile(r'^detvar_(.+)_(\d+)\.df$')
 
-# Sentinel distinguishing "caller didn't pass preprocess_fn" from "caller explicitly
-# passed None" (which means skip preprocessing entirely) -- same pattern as io.py's
-# load_mc/load_data.
 _UNSET = object()
 
-# Per-village slc_key + preprocess_fn + selection-preset resolution. Each
-# village module must expose `preprocess.preprocess_mc` (or equivalent
-# no-op-safe base) at minimum; `select`/`select_sideband` are only needed for
-# the 'signal'/'sideband'/'preselect' selection types.
-_VILLAGE_SLC_KEY = {
+_SLC_KEY = {
     "nuecc":  "nuecc",
     "hnlpi0": "rec",
 }
@@ -98,8 +91,6 @@ def _selection_fn_map(village_name, village):
         out["signal"]    = (village.select, {})
         out["sideband"]  = (village.select_sideband, {})
         out["preselect"] = (village.select, {"stage": "shower_energy"})
-    # hnlpi0 (and any future village without a single default cut list) only
-    # supports 'preprocess' -- see module docstring.
     return out
 
 
@@ -160,7 +151,7 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
         variations.  Defaults to the lexicographically first CV key found.
     slc_key : str, optional
         Table key for the slice-level analysis DataFrame within each raw
-        ``.df`` file. Defaults to ``_VILLAGE_SLC_KEY[village_name]``.
+        ``.df`` file. Defaults to ``_SLC_KEY[village_name]``.
     preprocess_fn : callable or None, optional
         Called as ``preprocess_fn(slc_df)`` on each CV/DV's slice-level table
         before it's stored. Defaults to the village's own base MC
@@ -178,7 +169,6 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
     if not dv_files:
         print("WARNING: no DV files found.")
 
-    # resolve reference CV key
     available_cv_keys = sorted(cv_files.keys())
     if cv_key is None:
         cv_key = available_cv_keys[0]
@@ -189,7 +179,7 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
         )
 
     if slc_key is None:
-        slc_key = _VILLAGE_SLC_KEY[village_name]
+        slc_key = _SLC_KEY[village_name]
     if preprocess_fn is _UNSET:
         preprocess_fn = _default_preprocess_fn(village_name, village)
 
@@ -199,13 +189,11 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
             dvf = dvf._replace(slc_df=preprocess_fn(dvf.slc_df))
         return dvf
 
-    # load CVs
     cv_dict: dict = {}
     for key, path in sorted(cv_files.items()):
         print(f"Loading CV '{key}': {path}")
         cv_dict[key] = _load_preprocessed(path)
 
-    # load DVs; each file maps to the CV with the matching index
     dv_dict: dict = {}
     cv_map:  dict = {}
     for key, (path, idx) in sorted(dv_files.items()):
@@ -219,7 +207,6 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
         dv_dict[key] = _load_preprocessed(path)
         cv_map[key]  = mapped_cv
 
-    # recombination detvars from reference CV (already preprocessed)
     ref_cv = cv_dict[cv_key]
     print(f"\nBuilding recombination detvars from '{cv_key}'...")
     recomb_dfs = core_detvar.make_recomb_detvars(ref_cv.slc_df)
@@ -246,7 +233,7 @@ def main():
     parser.add_argument(
         "--village",
         required=True,
-        choices=sorted(_VILLAGE_SLC_KEY),
+        choices=sorted(_SLC_KEY),
         help="Which cafpybara.analyses village to build the store for.",
     )
     parser.add_argument(
@@ -320,7 +307,6 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # ---- discover and load ----
     cv_dict, dv_dict, cv_map = build_dicts(
         args.input_dir, village, args.village, cv_key=args.cv_key, slc_key=args.slc_key,
     )
@@ -328,10 +314,8 @@ def main():
     print(f"DV keys : {list(dv_dict.keys())}")
     print(f"CV map  : {cv_map}")
 
-    # ---- filter to requested groups (--groups) ----
     write_mode = 'w'
     if args.groups is not None:
-        # Expand any CV key names (e.g. 'cv_0') to all DV groups mapped to that CV
         expanded: set[str] = set()
         for name in args.groups:
             if name in cv_dict:
@@ -352,7 +336,6 @@ def main():
         print(f"\nFiltered to groups : {sorted(dv_dict.keys())}")
         print(f"Write mode         : append (patch existing store)")
 
-    # ---- write each requested store ----
     for sel_name in selections:
         out_path = os.path.join(args.output_dir, _OUTPUT_FILE[sel_name])
         print(f"\n[{sel_name}] → {out_path}")

@@ -65,7 +65,6 @@ def annotate_sbnd(ax, internal=True):
     """
     label = "SBND Internal" if internal else "SBND Analysis In Progress"
     ax.annotate(label, xy=(0.0, 1.02), xycoords='axes fraction', ha='left', color='gray', fontweight='bold')
-    # ax.annotate("GENIE v3.40 AR23_00i_00_000", xy=(1.0, 1.02), xycoords='axes fraction', ha='right', color='gray')
 
 def plot_var(df: pd.DataFrame,
              var: tuple | str,
@@ -204,8 +203,6 @@ def plot_var(df: pd.DataFrame,
           break
 
     if ax is None: ax = plt.gca()
-    # No topology default here -- pass categories=/pdg_categories=/mode_categories=
-    # explicitly, or use a per-analysis plot_var wrapper that supplies its own.
     if custom_cats is not None:
         categories = custom_cats
     elif pdg:
@@ -229,8 +226,8 @@ def plot_var(df: pd.DataFrame,
     if hatch == None: hatch = [""]*ncategories
     alpha = 0.25 if pdg else 0.4
     
-    hists       = np.zeros((ncategories,len(bins)-1)) # this is for storing the histograms
-    steps       = np.zeros((ncategories,len(bins))) # this is for plotting
+    hists       = np.zeros((ncategories,len(bins)-1))
+    steps       = np.zeros((ncategories,len(bins)))
     bin_widths  = np.diff(bins)
     
     stats       = np.zeros(len(bins)-1)
@@ -266,12 +263,9 @@ def plot_var(df: pd.DataFrame,
                                       bins=bins, overflow=overflow)
     else:
         process_col = tuple(list(pdg_col)[:-1] + ['start_process']) 
-        # other_df stores any particles that we don't specify the pdg of
-        this_nu_df      = df[df.signal <  signal_dict['cosmic']]#.sort_index()
-        this_cosmic_df  = df[df.signal == signal_dict['cosmic']]#.sort_index()
-        this_offbeam_df = df[df.signal == signal_dict['offbeam']]#.sort_index()
-        # really only want to see electrons that are
-        # primaries from a FV neutrino interaction
+        this_nu_df      = df[df.signal <  signal_dict['cosmic']]
+        this_cosmic_df  = df[df.signal == signal_dict['cosmic']]
+        this_offbeam_df = df[df.signal == signal_dict['offbeam']]
         where_notprim = ((abs(this_nu_df[pdg_col])==11) & 
                           (this_nu_df[process_col] != 0)) 
         this_notprim_df   = this_nu_df[where_notprim]
@@ -299,9 +293,6 @@ def plot_var(df: pd.DataFrame,
                                           weights=pop['weights_mc'] if weight else None,
                                           bins=bins, overflow=overflow)
     
-    # Verify every row in df contributed to exactly one category bin.
-    # Mismatched filter keys, unhandled signal values, or accidental row drops
-    # will show up here before they silently skew the ratio or chi-sq.
     _expected_total = get_hist1d(data=df[var],
                                  weights=df['weights_mc'] if weight else None,
                                  bins=bins, overflow=overflow)
@@ -317,21 +308,12 @@ def plot_var(df: pd.DataFrame,
             stacklevel=2,
         )
 
-    # ! THIS ASSUMES that the PDG of interest and the signal type of interest are both index 0
-    # ! e.g. for nueCC (signal==0), e- is the first entry in the pdg_dict
     hists    *= scale
     hists[0] = mult_factor*hists[0]
 
-    # storing the sum of each category in case we want to display it
     hist_counts = np.sum(hists,axis=1)
 
-    # --- Systematics ---
-    # Four cases, resolved before the plot loop:
-    #   SystematicsInput  → call get_total_cov on-the-fly; MCstat folded in.
-    #   SystematicsOutput → use pre-computed get_total_cov result; MCstat folded in.
-    #   True              → read universe columns from df; MCstat separate if no MCstat universe.
-    #   None/else         → MC stat error only.
-    _mcstat_err_annot = None  # populated in SystematicsInput/Output blocks when MCstat key present
+    _mcstat_err_annot = None
 
     def _apply_syst_output(output, hist_scale):
         """Shared logic for SystematicsInput and SystematicsOutput paths."""
@@ -346,21 +328,18 @@ def plot_var(df: pd.DataFrame,
         return _total_cov, _systs_arr, _syst_dict, _calc_sep
 
     if isinstance(systs, SystematicsInput) or type(systs).__name__ == 'SystematicsInput':
-        # Case 1: call get_total_cov on-the-fly with the bundled parameters.
         from .funcs import get_total_cov
         _output = get_total_cov(reco_df=df, reco_var=var, bins=bins, **systs.to_kwargs())
         _hist_scale = integrated_flux * (systs.mcbnb_pot/1e6)
         total_cov, systs_arr, syst_dict, calc_separate_mcstat = _apply_syst_output(_output, _hist_scale)
 
     elif isinstance(systs, SystematicsOutput) or type(systs).__name__ == 'SystematicsOutput':
-        # Case 2: caller already ran get_total_cov and passes the result directly.
         if systs.mcbnb_pot is None:
             raise ValueError("SystematicsOutput.mcbnb_pot is not set; use get_total_cov to produce it")
         _hist_scale = integrated_flux * (systs.mcbnb_pot/1e6)
         total_cov, systs_arr, syst_dict, calc_separate_mcstat = _apply_syst_output(systs, _hist_scale)
 
     elif systs is True:
-        # Case 3: inherit systematics from universe columns in the dataframe.
         found_systs = any("univ_" in "_".join(list(col)) for col in df.columns)
         if not found_systs:
             print("systs=True but no universe columns found; computing stat error only")
@@ -376,13 +355,10 @@ def plot_var(df: pd.DataFrame,
             calc_separate_mcstat = not has_mcstat
 
     else:
-        # Case 4: systs=None — no systematics; only MC stat error is shown.
         syst_dict = {}
         systs_arr = np.zeros(len(bins)-1)
         calc_separate_mcstat = True
 
-    # MC stat variance — added when not already folded into the syst covariance.
-    # For weighted MC the per-bin variance is sum(w^2); unweighted reduces to Poisson N.
     if calc_separate_mcstat:
         stats_var = get_hist1d(data=df[var],
                                weights=np.square(df['weights_mc']) if weight else None,
@@ -409,7 +385,6 @@ def plot_var(df: pd.DataFrame,
         if counts: plot_label += f" ({int(hist_counts[i]):,})" if hist_counts[i] < 1e6 else f"({hist_counts[i]:.2e}"
         if percents: plot_label += f" ({hist_counts[i]/np.sum(hist_counts)*100:.1f}%)"
         bottom=steps[i-1] if i>0 else 0
-        # steps needs the first entry to be repeated!
         steps[i] = np.insert(hists[i],obj=0,values=hists[i][0]) + bottom; 
         ax.fill_between(bins, bottom, steps[i], step="pre", 
                          facecolor=mpl.colors.to_rgba(color,alpha),
@@ -426,21 +401,16 @@ def plot_var(df: pd.DataFrame,
                          "zorder": ncategories + 1}
 
         has_systs = np.any(systs_arr > 0)
-        # fill_between needs the first bin edge repeated
         _systs = np.append(systs_err[0], systs_err)
         _stats = np.append(stats_err[0], stats_err)
 
         if has_systs:
-            # Always combine stat and syst in quadrature into a single band.
-            # When MCstat is folded into the covariance (SystematicsInput/Output),
-            # stats_err is zero so combined reduces to systs_err unchanged.
             combined_err = np.sqrt(systs_err**2 + stats_err**2)
             _combined = np.append(combined_err[0], combined_err)
             ax.fill_between(bins,
                             steps[-1] - _combined, steps[-1] + _combined,
                             **systs_options, label="MC stat.+syst.")
         else:
-            # systs=None — stat error only.
             ax.fill_between(bins,
                             steps[-1] - _stats, steps[-1] + _stats,
                             **stats_options, label="MC stat.")
@@ -455,7 +425,6 @@ def plot_var(df: pd.DataFrame,
     syst_dict['__stats_err__']        = stats_err
     syst_dict['__systs_err__']        = systs_err
     syst_dict['__separate_errors__']  = calc_separate_mcstat
-    # MCstat for annotation: from the SystematicsInput path if available, else stats_err.
     syst_dict['__mcstat_err__']       = _mcstat_err_annot if _mcstat_err_annot is not None else stats_err
 
     _var_str = var if isinstance(var, str) else '_'.join(var)
@@ -470,7 +439,6 @@ def plot_var(df: pd.DataFrame,
     else:
         ax.xaxis.set_minor_locator(_clipped_minor_locator(bins[0], bins[-1]))
 
-    # Apply legend with custom kwargs
     default_legend_kwargs = {'ncol': 2, 'loc': 'upper right'}
     if legend_kwargs:
         default_legend_kwargs.update(legend_kwargs)
@@ -616,19 +584,14 @@ def plot_mc_data(mc_df: pd.DataFrame,
     
     xmin, xmax = ax_main.get_xlim()
     
-    # plot the ratio
-    mc_tot = mc_steps[-1][1:]  # last step contains the total MC counts
+    mc_tot = mc_steps[-1][1:]
     fig.canvas.draw()
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore",message="invalid value encountered in divide")
-        # ratio is (data bin content) / (mc bin content)
         ratio = data_hist / mc_tot
-        # error in ratio is just (data error) / (mc bin content)
         ratio_err = data_err / mc_tot
-        # error in shading should just be (mc error) / (mc bin content)
         mc_contribution = mc_err/mc_tot
-        # shading is around unity    
         ps_err = 1 + np.append(mc_contribution[0],mc_contribution)
         ms_err = 1 - np.append(mc_contribution[0],mc_contribution)
 
@@ -638,47 +601,34 @@ def plot_mc_data(mc_df: pd.DataFrame,
     bin_centers = 0.5 * (mc_bins[1:] + mc_bins[:-1])
     
     ax_sub.errorbar(bin_centers, ratio, yerr=ratio_err, fmt='s', markersize=3,color='black', zorder=1e3, label='Data/Pred ratio')
-    # fill_between needs last entry to be repeated 
     ax_sub.fill_between(mc_bins,ms_err, ps_err, step="pre", color=mpl.colors.to_rgba("gray", alpha=0.4), lw=0.0, label='Pred err.')
     
     ax_sub.axhline(1, color='red', linestyle='--', linewidth=1, zorder=0,label="y=1.0")
     ax_sub.set_xlim(xmin, xmax)
     ax_sub.set_ylim(ratio_min, ratio_max)
     ax_sub.set_ylabel("Data/Pred")
-    # Move xlabel to ratio panel and suppress top-panel x-axis tick labels.
     ax_sub.set_xlabel(ax_main.get_xlabel(), fontsize=12)
     ax_main.set_xlabel("")
     plt.setp(ax_main.get_xticklabels(), visible=False)
     ax_main.tick_params(axis='x', which='both', bottom=True, top=False)
-    # ax_sub.legend(loc='upper center', bbox_to_anchor=(0.5, 1.4),
-                #   ncol=3, fontsize='small', frameon=False)
 
     cut_val = _p.get('cut_val', None)
     if cut_val is not None:
         for cut in cut_val:
-            # ax_main.axvline(cut, color='black', linestyle='--', linewidth=2, alpha=0.5, zorder=1e2)
             ax_sub.axvline (cut, color='black', linestyle='--', linewidth=2, alpha=0.5, zorder=1e2)
 
     total_data = np.sum(data_hist)
     total_mc   = np.sum(mc_tot)
     total_ratio = total_data / total_mc
 
-    # MC covariance matrix — full 2D when cases 1/2 were used in plot_var,
-    # diagonal stat-only for case 3.
     has_full_cov = isinstance(mc_total_cov, np.ndarray) and mc_total_cov.shape == (nbins, nbins)
     mc_cov = mc_total_cov if has_full_cov else np.diag(np.square(mc_err))
 
-    # Combined covariance for chi-sq: data (Poisson diagonal) + MC.
     data_cov   = np.diag(np.square(data_err))
     counts_cov = data_cov + mc_cov
 
-    # Integrated ratio uncertainty.
-    # Cases 1 & 2: propagate full covariance — sigma_mc = sqrt(sum(mc_cov)) * R / total_mc.
-    # Case 3: same formula, but mc_cov is diagonal so sum(mc_cov) = sum of stat variances.
     total_ratio_data_err = np.sqrt(total_data) / total_mc
 
-    # Separate stat (data + MC stat) from syst for the annotation.
-    # __mcstat_err__ always holds the per-bin MC stat regardless of how systematics were computed.
     _mc_st = mc_dict.get('__mcstat_err__', mc_err) if isinstance(mc_dict, dict) else mc_err
     mcstat_ratio_err     = np.sqrt(np.sum(_mc_st ** 2)) * (total_ratio / total_mc)
     total_ratio_stat_err = np.sqrt(total_ratio_data_err**2 + mcstat_ratio_err**2)
@@ -865,8 +815,6 @@ def plot_mc_hnl_data(mc_df: pd.DataFrame,
 
     data_args = dict(df=data_df, var=var, bins=bins, ax=ax_main, normalize=_p.get('normalize', False), overflow=_p.get('overflow', True))
     mc_args   = dict(df=mc_df,  var=var, bins=bins, ax=ax_main, hist_filled=True,  error_legend=False, scale=scale_nu,  config=config, **kwargs)
-    # HNL step: counts/percents are display-scaled by an arbitrary scale_hnl, so the
-    # numbers aren't physically meaningful -- always suppressed, regardless of caller kwargs.
     hnl_args  = {**dict(df=hnl_df, var=var, bins=bins, ax=ax_main, hist_filled=False, error_legend=True, scale=scale_hnl, config=config, **kwargs),
                  'percents': False, 'counts': False}
     if hnl_categories is not None:
@@ -880,19 +828,14 @@ def plot_mc_hnl_data(mc_df: pd.DataFrame,
 
     xmin, xmax = ax_main.get_xlim()
 
-    # plot the ratio
-    mc_tot = mc_steps[-1][1:]  # last step contains the total MC counts
+    mc_tot = mc_steps[-1][1:]
     fig.canvas.draw()
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid value encountered in divide")
-        # ratio is (data bin content) / (mc bin content)
         ratio = data_hist / mc_tot
-        # error in ratio is just (data error) / (mc bin content)
         ratio_err = data_err / mc_tot
-        # error in shading should just be (mc error) / (mc bin content)
         mc_contribution = mc_err / mc_tot
-        # shading is around unity
         ps_err = 1 + np.append(mc_contribution[0], mc_contribution)
         ms_err = 1 - np.append(mc_contribution[0], mc_contribution)
 
@@ -902,14 +845,12 @@ def plot_mc_hnl_data(mc_df: pd.DataFrame,
     bin_centers = 0.5 * (mc_bins[1:] + mc_bins[:-1])
 
     ax_sub.errorbar(bin_centers, ratio, yerr=ratio_err, fmt='s', markersize=3, color='black', zorder=1e3, label='Data/Pred ratio')
-    # fill_between needs last entry to be repeated
     ax_sub.fill_between(mc_bins, ms_err, ps_err, step="pre", color=mpl.colors.to_rgba("gray", alpha=0.4), lw=0.0, label='Pred err.')
 
     ax_sub.axhline(1, color='red', linestyle='--', linewidth=1, zorder=0, label="y=1.0")
     ax_sub.set_xlim(xmin, xmax)
     ax_sub.set_ylim(ratio_min, ratio_max)
     ax_sub.set_ylabel("Data/Pred")
-    # Move xlabel to ratio panel and suppress top-panel x-axis tick labels.
     ax_sub.set_xlabel(ax_main.get_xlabel(), fontsize=12)
     ax_main.set_xlabel("")
     plt.setp(ax_main.get_xticklabels(), visible=False)
@@ -924,19 +865,14 @@ def plot_mc_hnl_data(mc_df: pd.DataFrame,
     total_mc   = np.sum(mc_tot)
     total_ratio = total_data / total_mc
 
-    # MC covariance matrix — full 2D when cases 1/2 were used in plot_var,
-    # diagonal stat-only for case 3.
     has_full_cov = isinstance(mc_total_cov, np.ndarray) and mc_total_cov.shape == (nbins, nbins)
     mc_cov = mc_total_cov if has_full_cov else np.diag(np.square(mc_err))
 
-    # Combined covariance for chi-sq: data (Poisson diagonal) + MC.
     data_cov   = np.diag(np.square(data_err))
     counts_cov = data_cov + mc_cov
 
-    # Integrated ratio uncertainty.
     total_ratio_data_err = np.sqrt(total_data) / total_mc
 
-    # Separate stat (data + MC stat) from syst for the annotation.
     _mc_st = mc_dict.get('__mcstat_err__', mc_err) if isinstance(mc_dict, dict) else mc_err
     mcstat_ratio_err     = np.sqrt(np.sum(_mc_st ** 2)) * (total_ratio / total_mc)
     total_ratio_stat_err = np.sqrt(total_ratio_data_err**2 + mcstat_ratio_err**2)
@@ -1018,13 +954,12 @@ def plot_mc_hnl_data(mc_df: pd.DataFrame,
 
     annotate_sbnd(ax_main, internal=_p.get('internal', True))
 
-    # add things to dict to be returned for later use if needed
     mc_dict['bins'] = mc_bins
-    mc_dict['counts'] = mc_steps[-1][1:]  # last step contains the total MC counts
+    mc_dict['counts'] = mc_steps[-1][1:]
     mc_dict['total_err'] = mc_err
 
     hnl_dict['bins'] = mc_bins
-    hnl_dict['counts'] = hnl_steps[-1][1:]  # last step contains the total HNL counts
+    hnl_dict['counts'] = hnl_steps[-1][1:]
     hnl_dict['total_err'] = hnl_err
 
     dt_dict = {
@@ -1118,13 +1053,12 @@ def plot_mc_hnl(mc_df: pd.DataFrame,
             for cut in cut_val:
                 ax_fom.axvline(cut, color='black', linestyle='--', linewidth=2, alpha=0.5)
 
-    #add things to dict to be returned for later use if needed
     mc_dict['bins'] = mc_bins
-    mc_dict['counts'] = mc_steps[-1][1:]  # last step contains the total MC counts
+    mc_dict['counts'] = mc_steps[-1][1:]
     mc_dict['total_err'] = mc_err
 
     hnl_dict['bins'] = mc_bins
-    hnl_dict['counts'] = hnl_steps[-1][1:]  # last step contains the total HNL counts
+    hnl_dict['counts'] = hnl_steps[-1][1:]
     hnl_dict['total_err'] = hnl_err
 
     if savefig != "":
@@ -1293,11 +1227,6 @@ def plot_syst_category_breakdown(
 
     cats_per_var = []
     cat_sums_per_var = []
-    # category -> (handle, label), keyed by category so a category present on an earlier
-    # subplot but absent from the last one (e.g. comparing two different samples with
-    # non-overlapping systematic coverage) still makes it into the shared legend. Later
-    # subplots overwrite earlier ones when both have the category, preserving the
-    # previous "last subplot wins" behavior where coverage actually overlaps.
     legend_entries: dict = {}
 
     for ax, item in zip(axes, syst_vars):
@@ -1441,7 +1370,6 @@ def plot_syst_breakdown(
 
         if category is not None:
             this_df = syst_df[syst_df.category == category].sort_values('unc_norm', ascending=False)
-            # top5 is ranked per-category already; draw every source (faint), label only top_n.
             is_top = this_df['unc_norm'].rank(method='first', ascending=False) <= top_n
             plot_df = this_df
         else:

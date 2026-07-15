@@ -48,19 +48,14 @@ __all__ = ['make_recomb_detvars']
 
 _DEFAULT_SHOWERS = ['primshw', 'secshw']
 
-# Maps pairs of CALO_VARIATIONS keys to DetVar output names.
-# Each tuple is (output_key, plus_key, minus_key).
 _CALO_PAIRS = [
     ('calo_Ccal',   'ccal_p',  'ccal_m'),
     ('calo_alpha',  'alpha_p', 'alpha_m'),
     ('calo_beta90', 'beta_p',  'beta_m'),
     ('calo_R',      'R_p',     'R_m'),
 ]
-# Plane index used to read c_cal_frac from a CALO_VARIATIONS entry.
-# Collection plane (2) is the default bestplane for showers.
 _CALO_PLANE = 2
 
-# Defer CVMFS-backed calibration imports to first call.
 _chi2pid = None
 _calo    = None
 
@@ -209,7 +204,6 @@ def _yz_scale(df, shower):
     zbin = _chi2pid._yz_zbin(z,     _chi2pid.yz_zbin_sbnd_mc)
     itpc = pd.Series(np.where(x < 0, 0, 1), index=df.index)
     iov  = pd.Series(0, index=df.index)
-    # bestplane may be NaN for missing secondary showers; default to 0
     plane_int = plane.fillna(0).astype(int)
 
     lookup = pd.DataFrame({
@@ -223,7 +217,6 @@ def _yz_scale(df, shower):
                on=['iov', 'itpc', 'plane', 'ybin', 'zbin'], how='left')
         .scale
     )
-    # replace missing / zero entries with unity
     scale = scale.where(scale.fillna(0) > 1e-6, 1.0).fillna(1.0)
     scale.index = df.index
     return scale
@@ -265,7 +258,6 @@ def make_recomb_detvars(
     out: dict = {}
     calo_vars = _chi2pid.CALO_VARIATIONS
 
-    # ----- CALO_VARIATIONS multisim pairs (Ccal, alpha, beta90, R) -----
     for detvar_key, key_p, key_m in _CALO_PAIRS:
         for calo_key in (key_p, key_m):
             var   = calo_vars[calo_key]
@@ -280,7 +272,6 @@ def make_recomb_detvars(
                 df = _apply_energy_scale(df, sh, scale=1.0 / ccal)
             out.setdefault(detvar_key, []).append(df)
 
-    # ----- phi: use actual shower angle w.r.t. drift (unisim) -----
     df = slc_df
     for sh in showers:
         phi_col = _shower_phi(df, sh)
@@ -288,7 +279,6 @@ def make_recomb_detvars(
             df = _apply_recomb(df, sh, phi=phi_col)
     out['calo_phi'] = [df]
 
-    # ----- YZ spatial calibration (unisim) -----
     df = slc_df
     for sh in showers:
         yz = _yz_scale(df, sh)
@@ -296,7 +286,6 @@ def make_recomb_detvars(
         df = _apply_energy_scale(df, sh, scale=yz)
     out['calo_yz'] = [df]
 
-    # ----- Ecorr ±3%/1.17: energy scale only, no recombination change -----
     err = 0.03 / 1.17
     for scale in (1.0 + err, 1.0 - err):
         df = slc_df

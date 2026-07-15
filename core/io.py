@@ -15,12 +15,8 @@ import pandas as pd
 
 __all__ = ['get_n_split', 'print_keys', 'load_dfs', 'load_mc', 'load_data']
 
-# Sentinel distinguishing "caller didn't pass this" from "caller explicitly
-# passed None" -- load_mc/load_data use None to mean "skip this step", so the
-# unset-default can't also be None.
 _UNSET = object()
 
-# credit for first three functions to Mun!
 def get_n_split(file):
     """Get the number of splits in an HDF5 file.
 
@@ -47,7 +43,7 @@ def print_keys(file):
         Path to HDF5 file.
     """
     with pd.HDFStore(file, mode='r') as store:
-        keys = store.keys()       # list of all keys in the file
+        keys = store.keys()
         print("Keys:", keys)
 
 def load_dfs(file, keys2load, n_max_concat=10, start_split=0):
@@ -70,10 +66,6 @@ def load_dfs(file, keys2load, n_max_concat=10, start_split=0):
         Dictionary mapping key names to concatenated DataFrames.
     """
     out_df_dict = {}
-    # Single open HDFStore for the whole read, instead of one open+close per
-    # pd.read_hdf(file, key=...) call (get_n_split's own read plus one per
-    # key-per-split) -- meaningfully fewer file opens for files with several keys
-    # and/or several splits, and cheaper on this project's NFS-backed filesystem.
     with pd.HDFStore(file, mode='r') as store:
         this_n_keys = store['split'].n_split.iloc[0] - start_split
         n_concat = min(n_max_concat, this_n_keys)

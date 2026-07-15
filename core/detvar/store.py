@@ -160,7 +160,6 @@ def _add_rse_cols(slc_df: pd.DataFrame, lite_df: pd.DataFrame) -> pd.DataFrame:
                   .drop_duplicates(_DEFAULT_INT_MATCH_COL)
                   .set_index(_DEFAULT_INT_MATCH_COL))
 
-    # Reindex slc by int_match to align RSE across all slices per event
     slc_by_int  = slc_df.reset_index().set_index(_DEFAULT_INT_MATCH_COL)
     rse_aligned = rse.reindex(slc_by_int.index)
 
@@ -241,7 +240,6 @@ def write_detvar_store(
             )
             existing_meta.index.name = 'group'
 
-            # Safety: if a CV is being overwritten, all groups using it must be in dv_dict
             cvs_to_write = {cv_map[g] for g in dv_dict}
             for cv_key in cvs_to_write:
                 if f'cv/{cv_key}' in _store:
@@ -256,7 +254,6 @@ def write_detvar_store(
 
         preserved_meta = existing_meta[~existing_meta.index.isin(dv_dict)]
 
-        # Remove stale keys for groups about to be overwritten
         with pd.HDFStore(outfile, mode='a') as _store:
             for group in dv_dict:
                 for key in [f'cv_iloc/{group}', f'dv/{group}/v0', f'dv/{group}/v1']:
@@ -276,7 +273,6 @@ def write_detvar_store(
             cv_key = cv_map[group]
             cv     = cv_dict[cv_key]
 
-            # --- Step 1: external intersection via nulite indices ---
             common_idx = cv.lite_df.index
             for dv in dvs:
                 common_idx = common_idx.intersection(dv.lite_df.index)
@@ -295,7 +291,6 @@ def write_detvar_store(
                 f"({n_com/n_dv0*100:.1f}% of DV, {n_com/n_cv*100:.1f}% of CV '{cv_key}')"
             )
 
-            # --- Step 2a: filter CV nuecc via internal indices ---
             cv_lite_matched = cv.lite_df.loc[common_idx]
             pot             = float(cv_lite_matched['pot'].to_numpy().sum())
             cv_int_idx      = (cv_lite_matched.reset_index()
@@ -307,12 +302,10 @@ def write_detvar_store(
 
             store.put(f'cv_iloc/{group}', pd.Series(cv_iloc.astype(np.int64)), **kw)
 
-            # Write the full CV nuecc once per cv_key (iloc handles per-group slicing)
             if cv_key not in written_cvs:
                 store.put(f'cv/{cv_key}', _add_rse_cols(cv_slc, cv.lite_df), **kw)
                 written_cvs.add(cv_key)
 
-            # --- Step 2b: filter each DV nuecc via internal indices ---
             for i, dv in enumerate(dvs):
                 dv_lite_matched = dv.lite_df.loc[common_idx]
                 dv_int_idx      = (dv_lite_matched.reset_index()

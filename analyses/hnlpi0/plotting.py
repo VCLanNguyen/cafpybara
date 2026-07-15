@@ -23,6 +23,10 @@ plot_syst_category_breakdown = _core_plotting.plot_syst_category_breakdown
 plot_syst_breakdown = _core_plotting.plot_syst_breakdown
 
 
+# ---------------------------------------------------------------------------
+# Internal helpers (not exported)
+# ---------------------------------------------------------------------------
+
 def _inject_defaults(kwargs):
     kwargs.setdefault('categories', None)
     if kwargs['categories'] is None and not kwargs.get('pdg') and not kwargs.get('mode'):
@@ -32,6 +36,10 @@ def _inject_defaults(kwargs):
     kwargs.setdefault('signal_dict', signal_dict_hnl)
     return kwargs
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def plot_var(df, var, bins, ax=None, config=None, **kwargs):
     """Stacked histogram, defaulting to :data:`background_categories_hnl`.

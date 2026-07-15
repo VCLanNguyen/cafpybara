@@ -36,7 +36,6 @@ def main() -> None:
     try:
         nb = json.loads(raw)
     except json.JSONDecodeError:
-        # Not valid JSON (e.g. git probing a non-notebook path) -- pass through.
         sys.stdout.write(raw)
         return
     if 'cells' not in nb:

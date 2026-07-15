@@ -3,8 +3,6 @@ import pyhf
 
 pyhf.set_backend("numpy")
 
-#-----------------------------------------------------------------------------------------------------#
-#pyhf expects lists, not numpy arrays, so we need to convert the numpy arrays to lists
 def to_pylist(x):
     if isinstance(x, list):
         return [to_pylist(i) for i in x]
@@ -13,7 +11,6 @@ def to_pylist(x):
     else:
         return x
 
-#-----------------------------------------------------------------------------------------------------#
 def make_model_stats_only(signal_dict, bkg_dict, dt_dict=None, ifData=False):
     model = pyhf.Model(
         {
@@ -45,7 +42,6 @@ def make_model_stats_only(signal_dict, bkg_dict, dt_dict=None, ifData=False):
     if ifData:
         data = dt_dict['counts'] + model.config.auxdata
     else:
-        #For MC study: we assume data is the same as predicted background
         data = bkg_dict['counts'] + model.config.auxdata
     
     return model, data

@@ -292,12 +292,10 @@ def add_phi(df: pd.DataFrame) -> pd.DataFrame:
     trk_x_col = tuple(['primtrk', 'trk', 'dir', 'x'] + pad)
     trk_y_col = tuple(['primtrk', 'trk', 'dir', 'y'] + pad)
 
-    # Compute phi values
     new_cols = {shw_col: np.arctan2(df.primshw.shw.dir.x, df.primshw.shw.dir.y) * 180 / np.pi}
     if trk_x_col in df.columns and trk_y_col in df.columns:
         new_cols[trk_col] = np.arctan2(df.primtrk.trk.dir.x, df.primtrk.trk.dir.y) * 180 / np.pi
 
-    # Batch add columns to avoid fragmentation
     df = pd.concat([df, pd.DataFrame(new_cols)], axis=1)
     return _mark_applied(df, name)
 
@@ -491,22 +489,8 @@ def add_variables(df: pd.DataFrame, beam_x: float = -74.0, beam_y: float = 0.0) 
         return df
 
     df = ensure_lexsorted(df, axis=1)
-    # Ensures primshw.shw.dir.phi exists (and primtrk.trk.dir.phi too, if that table is
-    # present) -- idempotent, so a no-op if add_phi already ran. Reused below instead of
-    # recomputing the same arctan2 a second time under a different column path.
     df = add_phi(df)
 
-    # def _angle_z(shw):
-    #     dx = df[(shw, 'shw', 'dir', 'x', '', '')].values
-    #     dy = df[(shw, 'shw', 'dir', 'y', '', '')].values
-    #     dz = df[(shw, 'shw', 'dir', 'z', '', '')].values
-    #     n  = np.sqrt(dx**2 + dy**2 + dz**2)
-    #     with np.errstate(invalid='ignore'):
-    #         return np.degrees(np.arccos(np.clip(dz / np.where(n > 0, n, np.nan), -1, 1)))
-    #
-    # for shw in ('primshw', 'secshw'):
-    #     if (shw, 'shw', 'dir', 'z', '', '') in df.columns:
-    #         df[(shw, 'shw', 'angle_z', '', '', '')] = _angle_z(shw)
 
     if ('primshw', 'shw', 'dir', 'phi', '', '') in df.columns:
         df[('primshw', 'shw', 'phi', '', '', '')] = df.primshw.shw.dir.phi
@@ -516,38 +500,5 @@ def add_variables(df: pd.DataFrame, beam_x: float = -74.0, beam_y: float = 0.0) 
         dy = df[('secshw', 'shw', 'dir', 'y', '', '')].values
         df[('secshw', 'shw', 'phi', '', '', '')] = np.arctan2(dx, dy) * 180 / np.pi
 
-    # vtx_x_col = ('slc', 'vertex', 'x', '', '', '')
-    # vtx_y_col = ('slc', 'vertex', 'y', '', '', '')
-    # if vtx_x_col in df.columns and vtx_y_col in df.columns:
-    #     df[('slc', 'vertex', 'transverse_distance_beam_2', '', '', '')] = (
-    #         (df[vtx_x_col].values - beam_x) ** 2 +
-    #         (df[vtx_y_col].values - beam_y) ** 2
-    #     )
-    #
-    # has_prim = ('primshw', 'shw', 'bestplane_energy', '', '', '') in df.columns
-    # has_sec  = ('secshw',  'shw', 'bestplane_energy', '', '', '') in df.columns
-    #
-    # if has_prim and has_sec:
-    #     E1 = df[('primshw', 'shw', 'bestplane_energy', '', '', '')].values
-    #     E2 = df[('secshw',  'shw', 'bestplane_energy', '', '', '')].values
-    #
-    #     def _unit(shw):
-    #         dx = df[(shw, 'shw', 'dir', 'x', '', '')].values
-    #         dy = df[(shw, 'shw', 'dir', 'y', '', '')].values
-    #         dz = df[(shw, 'shw', 'dir', 'z', '', '')].values
-    #         n  = np.sqrt(dx**2 + dy**2 + dz**2)
-    #         n  = np.where(n > 0, n, np.nan)
-    #         return dx/n, dy/n, dz/n
-    #
-    #     ux1, uy1, uz1 = _unit('primshw')
-    #     ux2, uy2, uz2 = _unit('secshw')
-    #
-    #     with np.errstate(invalid='ignore'):
-    #         ET1 = E1 * np.sqrt(np.clip(1 - uz1**2, 0, None))
-    #         ET2 = E2 * np.sqrt(np.clip(1 - uz2**2, 0, None))
-    #         cos_theta = np.clip(ux1*ux2 + uy1*uy2 + uz1*uz2, -1, 1)
-    #         df[('slc', 'm_alt', '', '', '', '')] = (
-    #             np.sqrt(2 * ET1 * ET2 * (1 - cos_theta)) * 1000  # GeV -> MeV
-    #         )
 
     return _mark_applied(df, name)

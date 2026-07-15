@@ -33,35 +33,24 @@ __all__ = [
 # Signal/background category definitions
 # ---------------------------------------------------------------------------
 
-# HNL analysis: signal == 0 is the desired topology (HNL, including HNL cosmic).
-# Colors are the Sheffield palette used by the original HNL plotting code.
 signal_categories_hnl = {
-    "hnl":          {"value": 0,  "label": "HNL",                     "color": "#E7004C"},  # Coral
-    "CCpi0":        {"value": 1,  "label": r"CC$\nu$$\pi^0$",         "color": "#00CE7C"},  # MintGreen
-    "NCpi0":        {"value": 2,  "label": r"NC$\nu$$\pi^0$",         "color": "#FF6371"},  # Flamingo
-    "othernumuCC":  {"value": 3,  "label": r"Other CC $\nu_\mu$",     "color": "#005A8F"},  # Teal
-    "otherNC":      {"value": 4,  "label": r"Other NC $\nu$",         "color": "#DAA8E2"},  # Lavender
-    "CCnue":        {"value": 5,  "label": r"CC $\nu_e$",             "color": "#00BBCC"},  # Aqua
-    "nonFV":        {"value": 6,  "label": r"Non-FV $\nu$",           "color": "#FF9664"},  # Peach
-    "dirt":         {"value": 7,  "label": r"Dirt $\nu$",             "color": "#8B6969"},  # RosyBrown4
-    "cosmic":       {"value": 8,  "label": "Cosmic",                  "color": "#708090"},  # SlateGray
-    "offbeam":      {"value": 9,  "label": "Offbeam",                 "color": "#D0D2D4"},  # LightGray
-    "hnlcosmic":    {"value": 10, "label": "HNL Cosmic",              "color": "#131E29"},  # MidnightBlack
+    "hnl":          {"value": 0,  "label": "HNL",                     "color": "#E7004C"},
+    "CCpi0":        {"value": 1,  "label": r"CC$\nu$$\pi^0$",         "color": "#00CE7C"},
+    "NCpi0":        {"value": 2,  "label": r"NC$\nu$$\pi^0$",         "color": "#FF6371"},
+    "othernumuCC":  {"value": 3,  "label": r"Other CC $\nu_\mu$",     "color": "#005A8F"},
+    "otherNC":      {"value": 4,  "label": r"Other NC $\nu$",         "color": "#DAA8E2"},
+    "CCnue":        {"value": 5,  "label": r"CC $\nu_e$",             "color": "#00BBCC"},
+    "nonFV":        {"value": 6,  "label": r"Non-FV $\nu$",           "color": "#FF9664"},
+    "dirt":         {"value": 7,  "label": r"Dirt $\nu$",             "color": "#8B6969"},
+    "cosmic":       {"value": 8,  "label": "Cosmic",                  "color": "#708090"},
+    "offbeam":      {"value": 9,  "label": "Offbeam",                 "color": "#D0D2D4"},
+    "hnlcosmic":    {"value": 10, "label": "HNL Cosmic",              "color": "#131E29"},
 }
 signal_dict_hnl = {k: v["value"] for k, v in signal_categories_hnl.items()}
 
-# Background-only view of signal_categories_hnl, for the MC stack in plot_mc_hnl_data/
-# plot_mc_hnl. Excludes 'hnl'/'hnlcosmic' -- those two are only ever populated by an
-# MC-HNL sample itself (never mcbnb/dtbnb), and are passed separately via
-# `hnl_categories=` for the HNL step overlay, so the stack's own dict has no reason to
-# carry them.
 background_categories_hnl = {k: v for k, v in signal_categories_hnl.items()
                               if k not in ('hnl', 'hnlcosmic')}
 
-# Per-mass display scale for the HNL step overlay in plot_mc_hnl_data/plot_mc_hnl --
-# how much to visually inflate a given mass point's histogram so it's visible next to
-# the (much larger) MC background stack. Physically meaningless -- affects only
-# `scale_hnl=`, not real event counts -- tuned by eye per mass point.
 HNL_DISPLAY_SCALE = {
     140: 4000,
     165: 40,
@@ -125,8 +114,6 @@ PI0_CUTS_2SHW = PI0_CUTS_COMMON + [
     CutSpec("n2shw", fn=lambda df: df.slc.n_shws == 2, label="exactly 2 showers"),
 ]
 
-# Traditional angle cut, kept as a baseline to compare against a BDT (cut values from
-# Lan's thesis).
 PI0_CUTS_1SHW_ANGLE = PI0_CUTS_1SHW + [
     CutSpec("angle", variable=("primshw", "shw", "angle_z"), max=25, label="angle_z < 25 deg"),
 ]
@@ -134,10 +121,6 @@ PI0_CUTS_2SHW_ANGLE = PI0_CUTS_2SHW + [
     CutSpec("angle", variable=("primshw", "shw", "angle_z"), max=35, label="angle_z < 35 deg"),
 ]
 
-# 'either_*' modes are the union (OR) of the two shower-multiplicity selections'
-# tail cuts (the part beyond PI0_CUTS_COMMON) -- union_cut() folds that OR into a
-# single CutSpec, so these are ordinary sequential (AND) CutSpec lists like every
-# other entry in PI0_CUT_LISTS below, foldable into load-time cuts=.
 PI0_CUTS_EITHER_SHW = PI0_CUTS_COMMON + [
     union_cut("either_shw", PI0_CUTS_1SHW[len(PI0_CUTS_COMMON):],
               PI0_CUTS_2SHW[len(PI0_CUTS_COMMON):],
@@ -195,7 +178,6 @@ def define_signal_pi0(indf: pd.DataFrame, prefix=None):
     """
     from ...core.utils import ensure_lexsorted
 
-    # Keep lexsorted axes for robust multi-index access without forcing a full copy.
     nudf = ensure_lexsorted(ensure_lexsorted(indf, 0), 1)
 
     if prefix is None:
@@ -205,9 +187,9 @@ def define_signal_pi0(indf: pd.DataFrame, prefix=None):
 
     whereFV = InFV(mcdf.position,det="SBND",inzback=0)
     whereAV = InAV(df=mcdf.position)
-    whereCCpi0 = ((mcdf.iscc==1)  # require CC interaction
-                & (abs(mcdf.pdg)==14)  # require neutrino to be a nue
-                & (mcdf.npi0>0) # require at least one pi0 in the final state
+    whereCCpi0 = ((mcdf.iscc==1)
+                & (abs(mcdf.pdg)==14)
+                & (mcdf.npi0>0)
                 )
 
     if "signal" in nudf.columns:
@@ -215,13 +197,12 @@ def define_signal_pi0(indf: pd.DataFrame, prefix=None):
     else:
         signal = np.full(len(nudf), -1, dtype=np.int16)
 
-    # background
-    signal[whereFV & (mcdf.iscc==0) & (mcdf.npi0 > 0)] = signal_dict_hnl["NCpi0"] # nc pi0 FV
-    signal[whereFV & (mcdf.iscc==1) & (abs(mcdf.pdg)==14) & (mcdf.npi0 == 0)] = signal_dict_hnl["othernumuCC"] # numu cc other FV
-    signal[whereFV & (mcdf.iscc==0) & (mcdf.npi0 == 0)] = signal_dict_hnl["otherNC"] # nc other FV
-    signal[whereFV & (mcdf.iscc==1) & (abs(mcdf.pdg)==12)] = signal_dict_hnl["CCnue"] # nue cc FV
-    signal[whereAV & (signal < 0)] = signal_dict_hnl["nonFV"] # nonFV
-    signal[whereAV == False] = signal_dict_hnl["dirt"] # dirt
+    signal[whereFV & (mcdf.iscc==0) & (mcdf.npi0 > 0)] = signal_dict_hnl["NCpi0"]
+    signal[whereFV & (mcdf.iscc==1) & (abs(mcdf.pdg)==14) & (mcdf.npi0 == 0)] = signal_dict_hnl["othernumuCC"]
+    signal[whereFV & (mcdf.iscc==0) & (mcdf.npi0 == 0)] = signal_dict_hnl["otherNC"]
+    signal[whereFV & (mcdf.iscc==1) & (abs(mcdf.pdg)==12)] = signal_dict_hnl["CCnue"]
+    signal[whereAV & (signal < 0)] = signal_dict_hnl["nonFV"]
+    signal[whereAV == False] = signal_dict_hnl["dirt"]
     signal[np.isnan(mcdf.E)] = signal_dict_hnl['cosmic']
 
     signal[whereFV & whereCCpi0] = signal_dict_hnl["CCpi0"]
@@ -234,9 +215,6 @@ def define_signal_pi0(indf: pd.DataFrame, prefix=None):
 def define_signal_hnl(indf):
     """Define signal for the HNL sample: everything (HNL and HNL cosmic) is signal."""
     signal_col = ('signal', '', '', '', '', '')
-    # HNL cosmic (mask via slc.prtl.E == NaN) is deliberately labeled HNL too, not
-    # signal_dict_hnl['hnlcosmic'] -- both are part of the signal region, so every row
-    # gets the same value regardless of the cosmic mask (no need to branch on it).
     indf[signal_col] = signal_dict_hnl['hnl']
 
     return indf

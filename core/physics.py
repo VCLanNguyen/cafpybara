@@ -28,22 +28,20 @@ __all__ = [
 # Physical and detector constants
 # ---------------------------------------------------------------------------
 
-RHO = 1.3836        # g/cm3, liquid Ar density
-N_A = 6.02214076e23 # Avogadro's number
-M_AR = 40           # g, molar mass of argon
-# x cm (drift) * z cm (width) * y cm (height), excluding 90 cm of y-dimension at high z
+RHO = 1.3836
+N_A = 6.02214076e23
+M_AR = 40
 V_SBND = (190)*2 * ((250 - 10)*(190*2) + (450-250)*(100 + 190))
 NTARGETS = RHO * V_SBND * N_A / M_AR
 
-# flux file, units: /m^2/10^6 POT, 50 MeV bins
 with uproot.open(config.FLUX_FILE) as f:
     nue_flux = f["flux_sbnd_nue"].to_numpy()
     flux_vals = nue_flux[0]
-integrated_flux = flux_vals.sum() / 1e4               # convert to cm^-2
-integrated_flux *= (180*180) / (200*200)               # rescale front face to AV front face
+integrated_flux = flux_vals.sum() / 1e4
+integrated_flux *= (180*180) / (200*200)
 
-POT_NORM_UNC  = 0.02  # fractional uncertainty on beam exposure (POT counting)
-NTARGETS_UNC  = 0.01  # fractional uncertainty on number of Ar targets
+POT_NORM_UNC  = 0.02
+NTARGETS_UNC  = 0.01
 
 # ---------------------------------------------------------------------------
 # Broad (topology-independent) category schemes
@@ -97,9 +95,6 @@ def define_generic(indf: pd.DataFrame, prefix=None):
     return indf
 
 
-# PDG categories for plotting. The 5 named entries use pdg-code filtering; the 4
-# extras (pdg=None) use filter-based population selection. Insertion order matters:
-# named entries must precede extras so that "other_nu" is built from the remainder.
 pdg_categories = {
     r"$e$":            {"pdg": 11,   "color": "C0"},
     r"$\mu$":          {"pdg": 13,   "color": "C1"},

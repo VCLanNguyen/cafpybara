@@ -45,8 +45,6 @@ __all__ = [
 # Signal/background category definitions
 # ---------------------------------------------------------------------------
 
-# Signal == 0 is assumed to be the desired topology.
-# Note: nonFV uses "C6" and dirt uses "C5" — intentionally non-sequential.
 signal_categories = {
     "nueCC":       {"value": 0, "label": r"CC $\nu_e$",         "color": "C0"},
     "numuCCpi0":   {"value": 1, "label": r"CC $\nu_\mu\pi^0$",  "color": "C1"},
@@ -61,9 +59,6 @@ signal_categories = {
 }
 signal_dict = {k: v["value"] for k, v in signal_categories.items()}
 
-# Simplified category scheme for external plots.  Each entry carries "values" (a list of
-# signal_dict integers) rather than a single "value", so multiple internal categories are
-# folded into one stack without modifying the signal column on the dataframe.
 signal_categories_external = {
     "nueCC":        {"values": [0],    "label": r"CC $\nu_e$",         "color": "C0"},
     "numuCCpi0":    {"values": [1],    "label": r"CC $\nu_\mu\pi^0$",  "color": "C1"},
@@ -78,10 +73,6 @@ signal_categories_external = {
 # Cut helper functions
 # ---------------------------------------------------------------------------
 
-# "SBND_nohighyz" (not the original nueana's "SBND_nu26") -- "SBND_nu26" was
-# never a valid `det` value in cafpyana's makedf.util.InFV (checked full git
-# history, zero hits), so nueCC's DEFAULT_CUTS chain never actually worked
-# against this cafpyana repo. Fixed 2026-07-14 per user's physics judgment.
 FV_DET    = "SBND_nohighyz"
 FV_INZBACK = 0
 
@@ -127,7 +118,6 @@ DEFAULT_CUTS = [
     CutSpec("shower_length",   variable=("primshw", "shw", "len"),            min=10,    max=200,   label="shower length [10, 200] cm"),
 ]
 
-# Sideband: built from DEFAULT_CUTS by overriding the cuts that differ.
 SIDEBAND_CUTS = DEFAULT_CUTS.copy()
 SIDEBAND_CUTS = drop_cuts(SIDEBAND_CUTS, "muon_rejection")
 SIDEBAND_CUTS = drop_cuts(SIDEBAND_CUTS, "shower_length")

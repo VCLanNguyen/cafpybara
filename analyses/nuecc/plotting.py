@@ -26,6 +26,11 @@ plot_detvar = _core_plotting.plot_detvar
 plot_syst_category_breakdown = _core_plotting.plot_syst_category_breakdown
 plot_syst_breakdown = _core_plotting.plot_syst_breakdown
 
+
+# ---------------------------------------------------------------------------
+# Internal helpers (not exported)
+# ---------------------------------------------------------------------------
+
 _DEFAULT_PDG_COL = 'pfp_shw_truth_p_pdg'
 
 
@@ -40,14 +45,16 @@ def _inject_defaults(kwargs):
     return kwargs
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def plot_var(df, var, bins, ax=None, config=None, **kwargs):
     """Stacked histogram, defaulting to nueCC's own ``signal_categories``.
 
     See :func:`cafpybara.core.plotting.plot_var` for the full parameter list.
     """
     if config is not None:
-        # config fields are read by core.plot_var itself; only fill in via
-        # kwargs (higher precedence) when config doesn't already set them.
         from dataclasses import fields as _dc_fields
         _cfg = {f.name: getattr(config, f.name) for f in _dc_fields(config)}
         for k in ('categories', 'pdg_categories', 'mode_categories', 'signal_dict', 'pdg_col'):

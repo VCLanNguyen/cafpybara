@@ -21,8 +21,17 @@ from .preprocess import preprocess_mchnl
 
 __all__ = ['load_mc', 'load_data', 'load_mchnl', 'correct_cosmic_weight_mevprtl_df']
 
+
+# ---------------------------------------------------------------------------
+# Internal helpers (not exported)
+# ---------------------------------------------------------------------------
+
 _define_signal_fn = partial(define_signal_pi0, prefix=('slc', 'truth'))
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def load_mc(
     file: str,
@@ -108,9 +117,7 @@ def correct_cosmic_weight_mevprtl_df(indf_rec, indf_truth, indf_hdr):
         ``indf_truth``.
     """
 
-    #Step 1: Build total event weight in reco and truth HNL dataframes
 
-    # Build total event weight in reco and truth HNL dataframes
     fluxw_column = ('slc', 'prtl', 'flux_weight', '', '', '')
     rayw_column = ('slc', 'prtl', 'ray_weight', '', '', '')
     decayw_column = ('slc', 'prtl', 'decay_weight', '', '', '')
@@ -123,14 +130,9 @@ def correct_cosmic_weight_mevprtl_df(indf_rec, indf_truth, indf_hdr):
     truth_totalw_column = ('weights_mc_truth', '')
     indf_truth[truth_totalw_column] = indf_truth[truth_rayw_column] * indf_truth[truth_decayw_column] * indf_truth[truth_fluxw_column]
 
-    #-------------------------------------------------------------------------------------#
-    #Step 2: Join evt from header dataframe into reco dataframe using reco's own full index
     evt_col = ('evt', '', '', '', '', '')
     indf_rec[evt_col] = indf_hdr['evt'].reindex(indf_rec.index)
 
-    #-------------------------------------------------------------------------------------#
-    # Step 3: Join truth total weight into reco dataframe on (file_idx, __ntuple, entry, evt)
-    # -- file_idx included only when present on both sides, see docstring.
     totalw_truth_col = ('weights_mc_truth', '', '', '', '', '')
 
     truth_total_weight = indf_truth[truth_totalw_column]
@@ -152,20 +154,12 @@ def correct_cosmic_weight_mevprtl_df(indf_rec, indf_truth, indf_hdr):
         names=join_names,
     )
 
-    # .map() instead of Series.reindex(): a direct lookup against reco_key's own order
-    # rather than reindex's stricter re-alignment machinery -- same result, cheaper
-    # since it doesn't need to build/validate reco_key as a standalone index in its
-    # own right the way reindex does.
     indf_rec[totalw_truth_col] = reco_key.map(truth_lookup)
 
-    #-------------------------------------------------------------------------------------#
-    # Step 4: Correct cosmic weight in reco dataframe using truth total weight for cosmic entries
 
     mask_cosmic = np.isnan(indf_rec[('slc', 'prtl', 'E', '', '', '')])
     indf_rec.loc[mask_cosmic, totalw_column] = indf_rec.loc[mask_cosmic, truth_totalw_column]
 
-    #-------------------------------------------------------------------------------------#
-    #Drop event column from reco dataframe
     indf_rec = indf_rec.drop(columns=[evt_col])
 
     return indf_rec
@@ -233,10 +227,6 @@ def load_mchnl(
         keys = ['hdr', rec_key, 'histpotdf']
     load_keys = keys if mevprtl_key in keys else keys + [mevprtl_key]
 
-    # load_dfs defaults to n_max_concat=10 -- silently loads only the first 10 HDF5
-    # splits if not told otherwise. Pass the file's actual split count explicitly so
-    # a future mchnl production with more than 10 splits doesn't get silently
-    # truncated here.
     dfs = load_dfs(file, keys2load=load_keys, n_max_concat=get_n_split(file))
     rec_df = preprocess_fn(dfs[rec_key]) if preprocess_fn is not None else dfs[rec_key]
     df  = correct_cosmic_weight_mevprtl_df(rec_df, dfs[mevprtl_key], dfs['hdr'])
@@ -245,7 +235,7 @@ def load_mchnl(
 
     pot  = dfs['histpotdf'].TotalPOT.sum() if 'histpotdf' in dfs else dfs['hdr'].pot.sum()
     simU = df[('slc', 'prtl', 'C2', '', '', '')].dropna().unique()[0]
-    hnlM = df[('slc', 'prtl', 'M', '', '', '')].dropna().unique()[0] * 1000  # GeV -> MeV
+    hnlM = df[('slc', 'prtl', 'M', '', '', '')].dropna().unique()[0] * 1000
 
     sel = select(df, cuts=cuts) if cuts is not None else df
     return sel, pot, {'simU': simU, 'hnlM': hnlM}
