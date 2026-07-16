@@ -11,12 +11,8 @@ in the TODOs)::
 Re-exports the full flat namespace: generic mechanics from
 ``cafpybara.core`` first, then this analysis's own
 ``analysis``/``preprocess``/``io``/``plotting``/``funcs`` (which shadow the
-core generics with this analysis's own real defaults). Getting this
-re-export block exactly right, unmodified, is more important than it looks
--- see `examples/build_a_new_analysis.ipynb`'s first section for why: two
-real bugs this project has already hit (missing `core.io`/`funcs`/
-`plotting`/`selection`/`physics` re-exports) were exactly a version of this
-file with one of these lines missing.
+core generics with this analysis's own real defaults). Keep this re-export
+block exactly as-is when copying the template.
 """
 
 from ... import core

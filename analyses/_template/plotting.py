@@ -17,12 +17,7 @@ def _inject_defaults(kwargs):
     if kwargs['categories'] is None and not kwargs.get('pdg') and not kwargs.get('mode'):
         kwargs['categories'] = signal_categories
     kwargs.setdefault('signal_dict', signal_dict)
-    # TODO: if you use pdg=True plots, this needs a pdg_col default too --
-    # but note nueCC's own attempt at a single default here turned out to
-    # be dead code (every real call site passes pdg_col explicitly, since
-    # it varies per variable being plotted -- a shower's truth PDG column
-    # differs from a track's). Consider leaving pdg_col unset here and
-    # always passing it explicitly at the call site instead.
+    # TODO: pdg_col varies per variable -- pass explicitly per call, not here.
     return kwargs
 
 

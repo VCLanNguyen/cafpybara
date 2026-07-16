@@ -15,9 +15,7 @@ from .preprocess import preprocess_mc_real, preprocess_data_real
 
 __all__ = ['load_mc', 'load_data']
 
-# TODO: replace with your analysis's real table key (the CAF/ntuple table
-# your maker writes the slice-level analysis DataFrame into -- 'rec' for
-# hnlpi0, 'nuecc' for nueCC).
+# TODO: set your slc-level table key (e.g. 'rec', 'nuecc').
 REC_KEY = "TODO_SET_ME"
 
 _define_signal_fn = partial(define_signal, prefix=('slc', 'truth'))
