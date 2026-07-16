@@ -489,6 +489,17 @@ def get_detvar_systs(detvar_dict, var, bins,
         - 'dv_df': DataFrame or list of DataFrames with detector variations
         - 'cv_df': DataFrame with central value
         - 'pot': POT for flux normalization
+        - 'cuts_signature' (optional): names of the cuts already applied to
+          this group at store-build time (see
+          :func:`~cafpybara.core.detvar.write_detvar_store`). When present
+          and ``cuts`` is also given, the cuts common to both (by name) are
+          re-applied using their *live* definitions and checked for a
+          row-count change -- catches a cut's definition silently drifting
+          since the store was built (e.g. a fiducial-volume boundary
+          changing), which a same-name-only check can't see. Absent for
+          stores with no selection applied at build time, or written before
+          this field existed -- the check is skipped for those, not treated
+          as an error.
     var : str or tuple
         Column name for the variable to histogram.
     bins : np.ndarray
@@ -544,6 +555,38 @@ def get_detvar_systs(detvar_dict, var, bins,
                     )
                 df = define_signal_fn(df, prefix=('slc', 'truth'))
             return df
+
+        if _needs_select:
+            cuts_signature = this_dict.get('cuts_signature')
+            if cuts_signature is not None:
+                stamped_names = set(cuts_signature)
+                overlap = [c for c in cuts if c.name in stamped_names]
+                missing = stamped_names - {c.name for c in overlap}
+                if missing:
+                    raise ValueError(
+                        f"get_detvar_systs: detvar group '{key}' was built with cut(s) "
+                        f"{sorted(missing)} that are missing from the live cuts= list passed "
+                        f"here. Either this store doesn't match this analysis's selection, or "
+                        f"cuts= is missing something it should include.\n\n"
+                        f"Fix: pass a cuts= list that includes every cut this store was built "
+                        f"with (extra cuts on top of those are fine)."
+                    )
+                if overlap:
+                    check_cv = select(this_cv, cuts=overlap, savedict=False, check_preprocessed=False)
+                    if len(check_cv) != len(this_cv):
+                        raise ValueError(
+                            f"get_detvar_systs: detvar group '{key}' -- re-applying cut(s) "
+                            f"{[c.name for c in overlap]} with today's definitions changes the "
+                            f"row count ({len(this_cv)} -> {len(check_cv)}), even though these "
+                            f"cuts already built this store.\n\n"
+                            f"The store's baked-in selection has drifted from the live cut "
+                            f"definitions -- e.g. a fiducial-volume boundary or threshold "
+                            f"changed since the store was built.\n\n"
+                            f"Fix: rebuild the store with today's cuts, or confirm which cut "
+                            f"changed and why before trusting this comparison."
+                        )
+            else:
+                print(f"  '{key}': no provenance stamp on this store -- skipping drift check")
 
         cv_sel = select(this_cv, **_sel_kw) if _needs_select else this_cv
         cv_sel = apply_event_mask(_ensure_signal(ensure_lexsorted(cv_sel, axis=1)), event_type)

@@ -151,6 +151,7 @@ class SystematicsInput:
     intime_key: str | None = None
     intime_cuts: object = None
     offbeam_value: int | None = None
+    intime_preprocess_fn: object = None
     define_signal_fn: object = None
     pot_norm_unc: float | None = None
     ntargets_unc: float | None = None

@@ -3,7 +3,10 @@ Detector variation (DetVar) HDF5 store: write and read helpers.
 
 Storage layout
 --------------
-/meta                        small DataFrame: group, cv_key, n_dv, pot
+/meta                        small DataFrame: group, cv_key, n_dv, pot,
+                              cuts_signature, stage (the latter two are None
+                              for stores/groups written with no selection --
+                              see write_detvar_store's cuts_signature param)
 /cv/{cv_key}                 full CV nuecc DataFrame, stored once per unique CV
 /dv/{group}/0                DV nuecc DataFrame pre-filtered to the CV∩DV intersection
 /dv/{group}/1                (second DV for multisim groups, same intersection)
@@ -42,7 +45,8 @@ Step 3 — load at analysis time:
     detvar_dict = load_detvar_dict('detvars.h5')
     # or a subset:
     detvar_dict = load_detvar_dict('detvars.h5', groups=['pmtgain', 'wiremod'])
-    # each entry: {'dv_df': df_or_list, 'cv_df': df, 'pot': float}
+    # each entry: {'dv_df': df_or_list, 'cv_df': df, 'pot': float,
+    #              'cuts_signature': list[str] | None, 'stage': str | None}
 """
 from __future__ import annotations
 
@@ -179,6 +183,8 @@ def write_detvar_store(
     dv_dict: dict,
     cv_map: dict,
     mode: str = 'w',
+    cuts_signature: list[str] | None = None,
+    stage: str | None = None,
 ) -> None:
     """Write a DetVar HDF5 store.
 
@@ -213,6 +219,18 @@ def write_detvar_store(
         also depended on by groups that are *not* in ``dv_dict`` (those groups'
         iloc indices would become invalid); include all affected groups in the
         call to avoid this.
+    cuts_signature : list of str, optional
+        Names of the cuts (``[c.name for c in cuts]``) that were applied to
+        every group written in this call, if any -- stamped into ``meta`` so
+        :func:`~cafpybara.core.syst.get_detvar_systs` can later detect
+        store/cuts drift (a cut with the same name behaving differently now
+        than when this store was built). ``None`` (the default) means no
+        selection was applied at build time -- leave unset for preprocess
+        -only stores.
+    stage : str, optional
+        The ``stage=`` cutoff used alongside ``cuts_signature``, if the
+        selection was stopped early (e.g. ``'preselect'``'s
+        ``stage='shower_energy'``). Stamped alongside ``cuts_signature``.
 
     Notes
     -----
@@ -321,10 +339,12 @@ def write_detvar_store(
                 store.put(f'dv/{group}/v{i}', _add_rse_cols(dv_slc_matched, dv_lite_matched), **kw)
 
             meta_rows.append({
-                'group':  group,
-                'cv_key': cv_key,
-                'n_dv':   len(dvs),
-                'pot':    pot,
+                'group':          group,
+                'cv_key':         cv_key,
+                'n_dv':           len(dvs),
+                'pot':            pot,
+                'cuts_signature': ','.join(cuts_signature) if cuts_signature is not None else None,
+                'stage':          stage,
             })
 
         meta = pd.DataFrame(meta_rows).set_index('group')
@@ -367,7 +387,12 @@ def load_detvar_dict(
     Returns
     -------
     dict
-        Maps each group name to ``{'dv_df': df_or_list, 'cv_df': df, 'pot': float}``.
+        Maps each group name to ``{'dv_df': df_or_list, 'cv_df': df, 'pot':
+        float, 'cuts_signature': list[str] | None, 'stage': str | None}``.
+        ``cuts_signature``/``stage`` are ``None`` for stores/groups written
+        with no selection applied at build time, or written before this
+        field existed -- :func:`~cafpybara.core.syst.get_detvar_systs`
+        treats that as "no drift check possible", not an error.
     """
     _preprocess_label = None
     if preprocess_fn is not None:
@@ -404,10 +429,17 @@ def load_detvar_dict(
                 for i in range(n_dv)
             ]
 
+            cuts_sig_raw = row.get('cuts_signature')
+            cuts_signature = cuts_sig_raw.split(',') if isinstance(cuts_sig_raw, str) and cuts_sig_raw else None
+            stage_raw = row.get('stage')
+            stage = stage_raw if isinstance(stage_raw, str) else None
+
             out[group] = {
                 'dv_df': dv_dfs if n_dv > 1 else dv_dfs[0],
                 'cv_df': cv_matched,
                 'pot':   float(row['pot']),
+                'cuts_signature': cuts_signature,
+                'stage': stage,
             }
 
     preprocess_str = _preprocess_label if _preprocess_label is not None else "none"

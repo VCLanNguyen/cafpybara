@@ -48,6 +48,7 @@ import re
 import sys
 
 from cafpybara.core import detvar as core_detvar
+from cafpybara.core.selection import select as core_select
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -85,12 +86,20 @@ def _default_preprocess_fn(village_name, village):
 
 
 def _selection_fn_map(village_name, village):
-    """Map selection-type name -> (fn, kwargs). 'preprocess' is always (None, {})."""
-    out = {"preprocess": (None, {})}
+    """Map selection-type name -> (cuts, stage). 'preprocess' is always (None, None).
+
+    Resolves nueCC's DEFAULT_CUTS/SIDEBAND_CUTS explicitly here, rather than
+    going through village.select's own cuts=None defaulting -- so the exact
+    resolved cut-name list used to build each store is known at this call
+    site, which is what gets stamped into the store as cuts_signature below
+    (lets get_detvar_systs later detect store/cuts drift, e.g. a cut's
+    definition changing after the store was built).
+    """
+    out = {"preprocess": (None, None)}
     if village_name == "nuecc":
-        out["signal"]    = (village.select, {})
-        out["sideband"]  = (village.select_sideband, {})
-        out["preselect"] = (village.select, {"stage": "shower_energy"})
+        out["signal"]    = (village.DEFAULT_CUTS, None)
+        out["sideband"]  = (village.SIDEBAND_CUTS, None)
+        out["preselect"] = (village.DEFAULT_CUTS, "shower_energy")
     return out
 
 
@@ -339,13 +348,15 @@ def main():
     for sel_name in selections:
         out_path = os.path.join(args.output_dir, _OUTPUT_FILE[sel_name])
         print(f"\n[{sel_name}] → {out_path}")
-        fn, kwargs = selection_fn_map[sel_name]
-        if fn is None:
+        cuts, stage = selection_fn_map[sel_name]
+        if cuts is None:
             core_detvar.write_detvar_store(out_path, cv_dict, dv_dict, cv_map, mode=write_mode)
         else:
-            cv_sel = core_detvar.apply_selection(cv_dict, fn, **kwargs)
-            dv_sel = core_detvar.apply_selection(dv_dict, fn, **kwargs)
-            core_detvar.write_detvar_store(out_path, cv_sel, dv_sel, cv_map, mode=write_mode)
+            cv_sel = core_detvar.apply_selection(cv_dict, core_select, cuts=cuts, stage=stage)
+            dv_sel = core_detvar.apply_selection(dv_dict, core_select, cuts=cuts, stage=stage)
+            cuts_signature = [c.name for c in cuts]
+            core_detvar.write_detvar_store(out_path, cv_sel, dv_sel, cv_map, mode=write_mode,
+                                            cuts_signature=cuts_signature, stage=stage)
 
     print("\nDone.")
 

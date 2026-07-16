@@ -1,18 +1,30 @@
-"""nueCC's own get_total_cov() convenience wrapper.
+"""nueCC's own SystematicsInput factory.
 
 Resolves nueCC's ``select_region`` naming ('signal'/'control'/'all') to its
 own detvar file paths, and its own in-time-cosmic file/key/offbeam-value --
 matching this village's historical defaults exactly, including the
 ``cuts=None`` -> ``DEFAULT_CUTS`` fallback that nueCC's own example
 notebooks currently rely on (they don't always pass ``cuts=`` explicitly).
+
+``get_total_cov`` is intentionally NOT defined here -- ``core.funcs
+.get_total_cov`` is the single real implementation, and every real call site
+(both the direct notebook drill-down calls and core.plotting's
+``systs=SystematicsInput(...)`` handling) already goes through
+``.to_kwargs()``. Keeping a second, village-local wrapper function around it
+is exactly the kind of duplicate-code-path that caused this module's
+defaults to silently diverge from core.plotting's before (see the
+architecture-rethink notes in claude_memory.md). ``nuecc.get_total_cov``
+resolves via this package's ``__init__.py`` re-exporting
+``core.funcs.get_total_cov`` directly -- unshadowed now that this file no
+longer defines its own.
 """
 
-from ...core.funcs import get_total_cov as _core_get_total_cov
 from . import config
 from .analysis import DEFAULT_CUTS, define_signal, signal_dict
 from .preprocess import preprocess_mc
+from ...core.classes import SystematicsInput
 
-__all__ = ['get_total_cov']
+__all__ = ['systs_input']
 
 
 # ---------------------------------------------------------------------------
@@ -30,18 +42,18 @@ _select_region_map = {
 # Public API
 # ---------------------------------------------------------------------------
 
-def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
-                  cuts=None, select_region: str = "signal",
-                  detvar_dict=None, detvar_files=None,
-                  intime_file=None, intime_key=None, offbeam_value=None,
-                  intime_preprocess_fn=None,
-                  define_signal_fn=None,
-                  uncertainty_keys=None,
-                  **kwargs):
-    """Get the total event-rate (and optional xsec) covariance for nueCC.
+def systs_input(mcbnb_pot, *, cuts=None, select_region: str = "signal",
+                 uncertainty_keys=None, **kwargs):
+    """Build a fully-resolved SystematicsInput for nueCC.
 
-    See :func:`cafpybara.core.funcs.get_total_cov` for the full parameter
-    list. Differences from the core function:
+    The single place nueCC's real defaults get filled in -- pass the result
+    straight to :func:`~cafpybara.core.funcs.get_total_cov` via
+    ``**systs_input(...).to_kwargs()``, or to
+    :class:`~cafpybara.core.classes.PlottingConfig`'s ``systs=`` argument.
+    Both paths resolve identically since both consume the same already-fully
+    -resolved :class:`~cafpybara.core.classes.SystematicsInput`.
+
+    Differences from a bare :class:`~cafpybara.core.classes.SystematicsInput`:
 
     - ``cuts=None`` defaults to :data:`~cafpybara.analyses.nuecc.analysis.DEFAULT_CUTS`.
     - ``select_region`` ('signal'/'control'/'all', default 'signal') resolves
@@ -52,32 +64,27 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
       ``config.INTIME_FILE``/``'nuecc'``/``signal_dict['offbeam']`` -- so
       ``'cosmic'`` is included by default here (unlike core), matching
       nueCC's historical default ``uncertainty_keys``.
+    - ``intime_preprocess_fn`` defaults to nueCC's own real ``preprocess_mc``
+      (imported above) -- NOT core's generic no-op of the same name.
     - ``define_signal_fn`` defaults to nueCC's own ``define_signal``.
     """
     if cuts is None:
         cuts = DEFAULT_CUTS
     if select_region not in _select_region_map:
         raise ValueError(f"select_region must be one of {list(_select_region_map)}, got '{select_region}'")
+    detvar_dict = kwargs.pop('detvar_dict', None)
+    detvar_files = kwargs.pop('detvar_files', None)
     if detvar_dict is None and detvar_files is None:
         detvar_files = _select_region_map[select_region]
-    if intime_file is None:
-        intime_file = config.INTIME_FILE
-    if intime_key is None:
-        intime_key = 'nuecc'
-    if offbeam_value is None:
-        offbeam_value = signal_dict['offbeam']
-    if intime_preprocess_fn is None:
-        intime_preprocess_fn = preprocess_mc
-    if define_signal_fn is None:
-        define_signal_fn = define_signal
+    kwargs.setdefault('intime_file', config.INTIME_FILE)
+    kwargs.setdefault('intime_key', 'nuecc')
+    kwargs.setdefault('offbeam_value', signal_dict['offbeam'])
+    kwargs.setdefault('intime_preprocess_fn', preprocess_mc)
+    kwargs.setdefault('define_signal_fn', define_signal)
     if uncertainty_keys is None:
         uncertainty_keys = {'rate', 'detv', 'norm', 'cosmic'}
 
-    return _core_get_total_cov(
-        reco_df, reco_var, bins, mcbnb_pot,
-        cuts=cuts, detvar_dict=detvar_dict, detvar_files=detvar_files,
-        intime_file=intime_file, intime_key=intime_key, offbeam_value=offbeam_value,
-        intime_preprocess_fn=intime_preprocess_fn,
-        define_signal_fn=define_signal_fn, uncertainty_keys=uncertainty_keys,
-        **kwargs,
+    return SystematicsInput(
+        mcbnb_pot=mcbnb_pot, cuts=cuts, detvar_dict=detvar_dict, detvar_files=detvar_files,
+        uncertainty_keys=uncertainty_keys, **kwargs,
     )
