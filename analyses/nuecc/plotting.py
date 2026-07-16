@@ -31,9 +31,6 @@ plot_syst_breakdown = _core_plotting.plot_syst_breakdown
 # Internal helpers (not exported)
 # ---------------------------------------------------------------------------
 
-_DEFAULT_PDG_COL = 'pfp_shw_truth_p_pdg'
-
-
 def _inject_defaults(kwargs):
     kwargs.setdefault('categories', None)
     if kwargs['categories'] is None and not kwargs.get('pdg') and not kwargs.get('mode'):
@@ -41,7 +38,10 @@ def _inject_defaults(kwargs):
     kwargs.setdefault('pdg_categories', _pdg_categories)
     kwargs.setdefault('mode_categories', _mode_categories)
     kwargs.setdefault('signal_dict', signal_dict)
-    kwargs.setdefault('pdg_col', _DEFAULT_PDG_COL)
+    # pdg_col has no sensible single default -- it depends on which variable
+    # is being plotted (e.g. a shower vs. track's truth PDG column differ).
+    # Every real pdg=True call site passes it explicitly; core.plot_var
+    # raises a clear error if it's missing when actually needed.
     return kwargs
 
 

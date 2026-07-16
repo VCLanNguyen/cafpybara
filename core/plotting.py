@@ -75,10 +75,12 @@ def plot_var(df: pd.DataFrame,
              ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Plot a variable as stacked histograms, selectable by category type.
 
-    Category mode is controlled by ``generic``, ``pdg``, and ``mode`` (checked in
-    that priority order):
+    Category mode is controlled by ``categories``, ``pdg``, and ``mode`` (checked in
+    that priority order). No topology default here -- one of the three must
+    resolve to a real dict, or this raises; a per-analysis ``plot_var`` wrapper
+    (e.g. nueCC's, which defaults ``categories`` to its own ``signal_categories``)
+    is what actually supplies a default in practice:
 
-    - default: stack by interaction type (``signal_categories``).
     - ``categories=<dict>``: use any custom category dict, including ``generic_categories``,
       ``signal_categories_external``, or a user-defined scheme. Entries may carry either
       ``"value"`` (int) or ``"values"`` (list of ints) for multi-signal-type merging.
@@ -133,8 +135,11 @@ def plot_var(df: pd.DataFrame,
         - ``None`` (default): MC stat error only (diagonal, sum-of-weights-squared).
     pdg : bool, default False
         Stack by PDG code rather than signal type.
-    pdg_col : tuple | str, default 'pfp_shw_truth_p_pdg'
+    pdg_col : tuple | str, optional
         Column containing the PDG code per particle (used when ``pdg=True``).
+        No default -- varies per variable being plotted (e.g. a shower vs.
+        track's truth PDG column), so every real call site passes this
+        explicitly; raises if ``pdg=True`` and this is missing.
     mode : bool, default False
         Stack by GENIE interaction mode.
     mode_col : tuple | str, default ('slc', 'truth', 'genie_mode')

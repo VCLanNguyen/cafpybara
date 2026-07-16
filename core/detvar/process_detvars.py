@@ -354,7 +354,15 @@ def main():
         else:
             cv_sel = core_detvar.apply_selection(cv_dict, core_select, cuts=cuts, stage=stage)
             dv_sel = core_detvar.apply_selection(dv_dict, core_select, cuts=cuts, stage=stage)
-            cuts_signature = [c.name for c in cuts]
+            # Truncate the signature at stage= -- cuts after that point were
+            # never actually applied (select() stops early), so stamping
+            # their names too would make a later drift check think cuts
+            # were applied that weren't, and misfire on a partial store.
+            if stage is not None:
+                stage_idx = next(i for i, c in enumerate(cuts) if c.name == stage)
+                cuts_signature = [c.name for c in cuts[:stage_idx + 1]]
+            else:
+                cuts_signature = [c.name for c in cuts]
             core_detvar.write_detvar_store(out_path, cv_sel, dv_sel, cv_map, mode=write_mode,
                                             cuts_signature=cuts_signature, stage=stage)
 
