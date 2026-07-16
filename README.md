@@ -87,6 +87,12 @@ analysis. Copy it to `cafpybara/analyses/<name>/` and fill in the `# TODO`s.
 walks through each file in write order, citing the real bug that shaped it.
 No real Fermilab/EAF data needed to run it.
 
+Before shipping it, run `python scripts/verify_new_analysis.py <name>` — a
+structural conformance check (no real data needed) covering re-export
+completeness, `get_total_cov` identity, no-op-preprocessing defaults, and
+dead kwargs in your example notebooks' `systs_input`/`SystematicsInput`/
+`PlottingConfig` calls.
+
 No shared registry or base class to edit — `cafpybara/core/` stays
 untouched. See "Reference: the override contract" below for the per-file
 checklist.
