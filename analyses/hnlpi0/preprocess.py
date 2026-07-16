@@ -2,7 +2,7 @@
 
 These build on the generic base/engines in :mod:`cafpybara.core.preprocess`
 (``preprocess_mc``/``preprocess_data`` no-ops, ``fix_timing_calibration``)
-plus this village's own generator-specific fixes and per-sample calibration
+plus this analysis's own generator-specific fixes and per-sample calibration
 constants (:mod:`cafpybara.core.timing_calibration`'s ``mcbnb_*``/``mchnl_*``/
 ``offbeam_*`` constants).
 """

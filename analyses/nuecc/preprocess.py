@@ -6,7 +6,7 @@ derived phi angles) built from the generic pieces in
 :mod:`cafpybara.core.preprocess`. Found live: the initial build wrongly
 assumed nueCC's own ``preprocess_mc``/``preprocess_data`` were no-ops (true
 on a different, HNL-focused branch of the ancestor repo, not on the nueCC
-`master` branch this village is meant to match) -- every MC/data dataframe
+`master` branch this analysis is meant to match) -- every MC/data dataframe
 loaded via ``nuecc.load_mc``/``load_data`` was silently skipping these fixes
 until this file was added.
 """

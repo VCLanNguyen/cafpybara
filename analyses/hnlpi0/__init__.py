@@ -1,4 +1,4 @@
-"""HNL/pi0 (nu_pi0) analysis -- built on cafpybara.core with this village's own defaults.
+"""HNL/pi0 (nu_pi0) analysis -- built on cafpybara.core with this analysis's own defaults.
 
 Usage::
 
@@ -9,7 +9,7 @@ Usage::
     ana.plot_var(df, var, bins)
 
 Re-exports the full flat namespace of the original (pre-refactor) package --
-generic mechanics from ``cafpybara.core`` first, then this village's own
+generic mechanics from ``cafpybara.core`` first, then this analysis's own
 ``analysis``/``io``/``plotting``/``funcs``/``bdt`` (which shadow the core
 generics with HNL/pi0's own real defaults).
 """

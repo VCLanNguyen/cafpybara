@@ -2,7 +2,7 @@
 
 Pre-fills :func:`cafpybara.core.plotting.plot_var` (and anything that calls
 it internally, e.g. ``plot_mc_data``) with nueCC's own default category
-dicts -- matching this village's historical default (stack by
+dicts -- matching this analysis's historical default (stack by
 ``signal_categories`` unless ``pdg=``/``mode=``/``categories=`` say
 otherwise).
 

@@ -1,4 +1,4 @@
-"""nueCC-specific paths (detvar/in-time-cosmic stores built with this village's own cuts)."""
+"""nueCC-specific paths (detvar/in-time-cosmic stores built with this analysis's own cuts)."""
 
 INTIME_FILE = "/exp/sbnd/data/users/lynnt/xsection/samples/MCP2025B_v10_06_00_09/dfs_nu26/mc_intime.df"
 

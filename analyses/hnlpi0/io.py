@@ -1,7 +1,7 @@
 """HNL/pi0's own load_mc()/load_data()/load_mchnl().
 
 ``load_mc``/``load_data`` pre-fill :func:`cafpybara.core.io.load_mc`/
-``load_data`` with this village's own ``rec_key='rec'`` and truth-signal
+``load_data`` with this analysis's own ``rec_key='rec'`` and truth-signal
 categorisation. ``load_mchnl`` is entirely HNL/pi0-specific (MeVPrtl
 generator loading) and has no core-generic equivalent -- no other topology
 has an analogous sample type.
@@ -47,10 +47,10 @@ def load_mc(
 ):
     """Load an MC HDF5 file. See :func:`cafpybara.core.io.load_mc` for full docs.
 
-    Defaults match this village's historical behavior: ``rec_key='rec'``,
+    Defaults match this analysis's historical behavior: ``rec_key='rec'``,
     ``preprocess_fn=preprocess_mc`` (base, currently a no-op -- pass e.g.
     ``preprocess_mcbnb`` explicitly for real timing calibration),
-    ``define_signal_fn`` stamps this village's own ``define_signal_pi0``.
+    ``define_signal_fn`` stamps this analysis's own ``define_signal_pi0``.
     """
     from ...core.preprocess import add_pi0 as _add_pi0
     add_pi0_fn = _add_pi0 if add_pi0 else None
@@ -72,7 +72,7 @@ def load_data(
 ):
     """Load a data HDF5 file. See :func:`cafpybara.core.io.load_data` for full docs.
 
-    Defaults match this village's historical behavior: ``rec_key='rec'``,
+    Defaults match this analysis's historical behavior: ``rec_key='rec'``,
     ``preprocess_fn=preprocess_data`` (base, currently a no-op),
     ``offbeam_signal_value=signal_dict_hnl['offbeam']``.
     """
@@ -201,7 +201,7 @@ def load_mchnl(
         preprocessed DataFrame is returned.
     preprocess_fn : callable or None, optional
         Called as ``preprocess_fn(df)`` on the raw ``rec_key`` table before the
-        cosmic-weight correction. Defaults to this village's own
+        cosmic-weight correction. Defaults to this analysis's own
         ``preprocess_mchnl`` (real MeVPrtl-generator timing calibration --
         matches this function's historical default on the ancestor repo's
         HNL-focused branch, unlike ``load_mc``/``load_data`` which default to

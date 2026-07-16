@@ -5,11 +5,11 @@ split exists for this topology) and no in-time-cosmic sample exists at all,
 so 'cosmic' is NOT included by default and raises a clear error if
 explicitly requested. `cuts` has no default here either -- PI0_CUT_LISTS has
 multiple valid modes, so the caller must always pass one explicitly (matching
-this village's actual notebook usage today).
+this analysis's actual notebook usage today).
 
 ``get_total_cov`` is intentionally NOT defined here, for the same reason as
 nueCC's equivalent module -- ``core.funcs.get_total_cov`` is the single real
-implementation, and this village's one real call site
+implementation, and this analysis's one real call site
 (``hnl_analysis_v6.ipynb``) already goes through ``.to_kwargs()``.
 ``hnlpi0.get_total_cov`` resolves via this package's ``__init__.py``
 re-exporting ``core.funcs.get_total_cov`` directly.

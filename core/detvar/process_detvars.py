@@ -12,32 +12,36 @@ Recombination detector variations are built from the reference CV and added
 to the DV set automatically.
 
 Unlike the original nueCC-only version, this script has no default topology
--- pass ``--village nuecc`` or ``--village hnlpi0`` to select which
+-- pass ``--analysis nuecc`` or ``--analysis hnlpi0`` to select which
 analysis's ``slc_key``/preprocessing/selection presets to use. A future
-topology's own village just needs `select`/`select_sideband`/`preprocess_mc`
-(or equivalents) importable the same way.
+analysis just needs `select`/`select_sideband`/`preprocess_mc` (or
+equivalents) importable the same way.
 
 Selection types
 ---------------
 preprocess  Preprocessing only (no cut-based selection); output: detvars.h5
-signal      Full signal selection via select(); output: detvars_signal.h5
-sideband    Sideband selection via select_sideband(); output: detvars_sideband.h5
-preselect   Signal selection stopped at shower_energy stage; output: detvars_preselect.h5
-all         All four of the above.
+signal      Full signal selection via select() (nuecc only); output: detvars_signal.h5
+sideband    Sideband selection via select_sideband() (nuecc only); output: detvars_sideband.h5
+preselect   Signal selection stopped at shower_energy stage (nuecc only); output: detvars_preselect.h5
+1shw        HNL/pi0's '1shw' cut-list mode (hnlpi0 only); output: detvars_1shw.h5
+all         All selections valid for the chosen --analysis.
 
-Note: 'signal'/'sideband'/'preselect' presets are only meaningful for
-villages that define select_sideband and a single obviously-correct default
-cut list (today: nuecc). hnlpi0 has multiple valid cut-list modes with no
-single default -- use '-s preprocess' only for hnlpi0, and apply the real
-cut sequence later via get_total_cov(..., cuts=<hnl_cuts>).
+Note: 'signal'/'sideband'/'preselect' are nueCC-only, since nueCC has a
+single obviously-correct default cut list. hnlpi0 has multiple valid
+cut-list modes with no single default -- '1shw' builds one of them
+explicitly; use '-s preprocess' for any other hnlpi0 mode and apply the
+real cut sequence later via get_total_cov(..., cuts=<hnl_cuts>).
 
 Examples
 --------
     # nueCC: signal + sideband stores (default selections)
-    python process_detvars.py --village nuecc -i /path/to/dfs/ -o /path/to/output/
+    python process_detvars.py --analysis nuecc -i /path/to/dfs/ -o /path/to/output/
 
     # HNL/pi0: preprocess-only store
-    python process_detvars.py --village hnlpi0 -i /path/to/dfs/ -o /path/to/output/ -s preprocess
+    python process_detvars.py --analysis hnlpi0 -i /path/to/dfs/ -o /path/to/output/ -s preprocess
+
+    # HNL/pi0: 1shw-selected, stamped store
+    python process_detvars.py --analysis hnlpi0 -i /path/to/dfs/ -o /path/to/output/ -s 1shw
 """
 from __future__ import annotations
 
@@ -59,9 +63,10 @@ _OUTPUT_FILE = {
     "signal":     "detvars_signal.h5",
     "sideband":   "detvars_sideband.h5",
     "preselect":  "detvars_preselect.h5",
+    "1shw":       "detvars_1shw.h5",
 }
 
-_ALL_SELECTIONS = ["preprocess", "signal", "sideband", "preselect"]
+_ALL_SELECTIONS = ["preprocess", "signal", "sideband", "preselect", "1shw"]
 
 _DETVAR_RE = re.compile(r'^detvar_(.+)_(\d+)\.df$')
 
@@ -73,33 +78,36 @@ _SLC_KEY = {
 }
 
 
-def _load_village(name):
+def _load_analysis(name):
     return importlib.import_module(f"cafpybara.analyses.{name}")
 
 
-def _default_preprocess_fn(village_name, village):
-    if village_name == "nuecc":
-        return village.preprocess.preprocess_mc
-    if village_name == "hnlpi0":
-        return village.preprocess.preprocess_mcbnb
-    raise ValueError(f"No default preprocess_fn known for village '{village_name}'")
+def _default_preprocess_fn(analysis_name, analysis):
+    if analysis_name == "nuecc":
+        return analysis.preprocess.preprocess_mc
+    if analysis_name == "hnlpi0":
+        return analysis.preprocess.preprocess_mcbnb
+    raise ValueError(f"No default preprocess_fn known for analysis '{analysis_name}'")
 
 
-def _selection_fn_map(village_name, village):
+def _selection_fn_map(analysis_name, analysis):
     """Map selection-type name -> (cuts, stage). 'preprocess' is always (None, None).
 
-    Resolves nueCC's DEFAULT_CUTS/SIDEBAND_CUTS explicitly here, rather than
-    going through village.select's own cuts=None defaulting -- so the exact
-    resolved cut-name list used to build each store is known at this call
-    site, which is what gets stamped into the store as cuts_signature below
-    (lets get_detvar_systs later detect store/cuts drift, e.g. a cut's
-    definition changing after the store was built).
+    Resolves each analysis's real cut lists explicitly here, rather than
+    going through an analysis-level select() wrapper's own cuts=None
+    defaulting -- so the exact resolved cut-name list used to build each
+    store is known at this call site, which is what gets stamped into the
+    store as cuts_signature below (lets get_detvar_systs later detect
+    store/cuts drift, e.g. a cut's definition changing after the store was
+    built).
     """
     out = {"preprocess": (None, None)}
-    if village_name == "nuecc":
-        out["signal"]    = (village.DEFAULT_CUTS, None)
-        out["sideband"]  = (village.SIDEBAND_CUTS, None)
-        out["preselect"] = (village.DEFAULT_CUTS, "shower_energy")
+    if analysis_name == "nuecc":
+        out["signal"]    = (analysis.DEFAULT_CUTS, None)
+        out["sideband"]  = (analysis.SIDEBAND_CUTS, None)
+        out["preselect"] = (analysis.DEFAULT_CUTS, "shower_energy")
+    elif analysis_name == "hnlpi0":
+        out["1shw"] = (analysis.PI0_CUT_LISTS['1shw'], None)
     return out
 
 
@@ -142,7 +150,7 @@ def _parse_detvar_files(input_dir: str) -> tuple[dict, dict]:
 # Dict builders
 # ---------------------------------------------------------------------------
 
-def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None = None,
+def build_dicts(input_dir: str, analysis, analysis_name: str, cv_key: str | None = None,
                  slc_key: str | None = None, preprocess_fn=_UNSET):
     """Load all CV and DV files; attach recombination detvars.
 
@@ -150,20 +158,20 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
     ----------
     input_dir : str
         Directory containing detvar_<name>_<idx>.df files.
-    village : module
-        The imported `cafpybara.analyses.<name>` village module.
-    village_name : str
-        Name of the village (e.g. 'nuecc', 'hnlpi0') -- used to resolve the
+    analysis : module
+        The imported `cafpybara.analyses.<name>` module.
+    analysis_name : str
+        Name of the analysis (e.g. 'nuecc', 'hnlpi0') -- used to resolve the
         default slc_key/preprocess_fn if not given explicitly.
     cv_key : str, optional
         Key of the CV used as the reference for DV matching and recombination
         variations.  Defaults to the lexicographically first CV key found.
     slc_key : str, optional
         Table key for the slice-level analysis DataFrame within each raw
-        ``.df`` file. Defaults to ``_SLC_KEY[village_name]``.
+        ``.df`` file. Defaults to ``_SLC_KEY[analysis_name]``.
     preprocess_fn : callable or None, optional
         Called as ``preprocess_fn(slc_df)`` on each CV/DV's slice-level table
-        before it's stored. Defaults to the village's own base MC
+        before it's stored. Defaults to the analysis's own base MC
         preprocessing function. Pass an explicit callable to override, or
         ``None`` to force-skip preprocessing.
 
@@ -188,9 +196,9 @@ def build_dicts(input_dir: str, village, village_name: str, cv_key: str | None =
         )
 
     if slc_key is None:
-        slc_key = _SLC_KEY[village_name]
+        slc_key = _SLC_KEY[analysis_name]
     if preprocess_fn is _UNSET:
-        preprocess_fn = _default_preprocess_fn(village_name, village)
+        preprocess_fn = _default_preprocess_fn(analysis_name, analysis)
 
     def _load_preprocessed(path):
         dvf = core_detvar.prepare_detvar_df(path, slc_key=slc_key)
@@ -240,10 +248,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--village",
+        "--analysis",
         required=True,
         choices=sorted(_SLC_KEY),
-        help="Which cafpybara.analyses village to build the store for.",
+        help="Which cafpybara.analyses analysis to build the store for.",
     )
     parser.add_argument(
         "-i", "--input-dir",
@@ -266,8 +274,8 @@ def main():
         help=(
             "Which stores to write. Choices: "
             + ", ".join(_ALL_SELECTIONS)
-            + ", all (shorthand for all four). Default: signal sideband "
-            "(only valid for villages with select_sideband, e.g. nuecc)."
+            + ", all (shorthand for every selection valid for --analysis). "
+            "Default: signal sideband (only valid for nuecc)."
         ),
     )
     parser.add_argument(
@@ -284,8 +292,8 @@ def main():
         default=None,
         help=(
             "Table key for the slice-level analysis DataFrame within each raw "
-            "detvar_*.df file. Defaults to the village's own convention "
-            "('nuecc' for --village nuecc, 'rec' for --village hnlpi0)."
+            "detvar_*.df file. Defaults to the analysis's own convention "
+            "('nuecc' for --analysis nuecc, 'rec' for --analysis hnlpi0)."
         ),
     )
     parser.add_argument(
@@ -302,14 +310,14 @@ def main():
     )
     args = parser.parse_args()
 
-    selections = _ALL_SELECTIONS if "all" in args.selections else args.selections
+    analysis = _load_analysis(args.analysis)
+    selection_fn_map = _selection_fn_map(args.analysis, analysis)
 
-    village = _load_village(args.village)
-    selection_fn_map = _selection_fn_map(args.village, village)
+    selections = list(selection_fn_map) if "all" in args.selections else args.selections
     unsupported = set(selections) - set(selection_fn_map)
     if unsupported:
         sys.exit(
-            f"ERROR: village '{args.village}' does not support selection type(s) "
+            f"ERROR: analysis '{args.analysis}' does not support selection type(s) "
             f"{sorted(unsupported)} -- only {sorted(selection_fn_map)} available. "
             "See module docstring."
         )
@@ -317,7 +325,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     cv_dict, dv_dict, cv_map = build_dicts(
-        args.input_dir, village, args.village, cv_key=args.cv_key, slc_key=args.slc_key,
+        args.input_dir, analysis, args.analysis, cv_key=args.cv_key, slc_key=args.slc_key,
     )
     print(f"\nCV keys : {list(cv_dict.keys())}")
     print(f"DV keys : {list(dv_dict.keys())}")

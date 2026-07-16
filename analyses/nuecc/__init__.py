@@ -8,7 +8,7 @@ Usage::
     ana.plot_var(df, var, bins)
 
 Re-exports the full flat namespace of the original (pre-refactor) package --
-generic mechanics from ``cafpybara.core`` first, then this village's own
+generic mechanics from ``cafpybara.core`` first, then this analysis's own
 ``analysis``/``selection``/``io``/``plotting``/``funcs`` (which shadow the
 core generics with nueCC's own real defaults, e.g. ``io.load_mc`` here
 defaults ``rec_key='nuecc'`` where ``core.io.load_mc`` has no default at all).

@@ -1,7 +1,7 @@
 """HNL/pi0's own plot_var()/plot_mc_data()/plot_mc_hnl_data() convenience wrappers.
 
 Pre-fills :func:`cafpybara.core.plotting.plot_var` (and anything that calls
-it internally) with this village's own default category dict
+it internally) with this analysis's own default category dict
 (:data:`~cafpybara.analyses.hnlpi0.analysis.background_categories_hnl` -- the
 MC-stack view that excludes the HNL-only 'hnl'/'hnlcosmic' entries).
 """

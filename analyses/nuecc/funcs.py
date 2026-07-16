@@ -2,7 +2,7 @@
 
 Resolves nueCC's ``select_region`` naming ('signal'/'control'/'all') to its
 own detvar file paths, and its own in-time-cosmic file/key/offbeam-value --
-matching this village's historical defaults exactly, including the
+matching this analysis's historical defaults exactly, including the
 ``cuts=None`` -> ``DEFAULT_CUTS`` fallback that nueCC's own example
 notebooks currently rely on (they don't always pass ``cuts=`` explicitly).
 
@@ -10,7 +10,7 @@ notebooks currently rely on (they don't always pass ``cuts=`` explicitly).
 .get_total_cov`` is the single real implementation, and every real call site
 (both the direct notebook drill-down calls and core.plotting's
 ``systs=SystematicsInput(...)`` handling) already goes through
-``.to_kwargs()``. Keeping a second, village-local wrapper function around it
+``.to_kwargs()``. Keeping a second, analysis-local wrapper function around it
 is exactly the kind of duplicate-code-path that caused this module's
 defaults to silently diverge from core.plotting's before (see the
 architecture-rethink notes in claude_memory.md). ``nuecc.get_total_cov``

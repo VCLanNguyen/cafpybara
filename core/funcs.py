@@ -508,7 +508,7 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
             "(yours) against an unselected one (detvar's), which inflates the "
             "'detv' uncertainty for no physical reason.\n\n"
             "Fix: pass the same cuts you used to build reco_df, "
-            "e.g. cuts=your_village.DEFAULT_CUTS (whatever cut list you "
+            "e.g. cuts=your_analysis.DEFAULT_CUTS (whatever cut list you "
             "loaded your dataframes with)."
         )
     resolved_intime_cuts = intime_cuts if intime_cuts is not None else cuts

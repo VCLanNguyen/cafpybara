@@ -1,7 +1,7 @@
 """nueCC's own select()/select_sideband() convenience wrappers.
 
 Unlike :func:`cafpybara.core.selection.select`, ``cuts`` here defaults to
-nueCC's own ``DEFAULT_CUTS``/``SIDEBAND_CUTS`` -- matching this village's
+nueCC's own ``DEFAULT_CUTS``/``SIDEBAND_CUTS`` -- matching this analysis's
 historical, actually-relied-upon behavior (nueCC's own example notebooks
 call ``select()``/``get_total_cov()`` without always specifying ``cuts=``
 explicitly).
