@@ -410,7 +410,8 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
     **select_kwargs
         Additional keyword arguments forwarded to
         :func:`~cafpybara.core.selection.select` for detector-variation
-        selection (e.g. ``stage``).
+        selection (e.g. ``stage``). Only applied together with ``cuts=`` --
+        selection never runs on ``select_kwargs`` alone.
     projected_pot : float, optional
         Projected POT for data statistics calculation
     mcbnb_ngen : float, optional
@@ -495,32 +496,32 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
             "'cosmic' requested in uncertainty_keys, but intime_file/intime_key/"
             "offbeam_value were not all provided -- no topology default here."
         )
-    if include_detv and cuts is None and not select_kwargs:
+    if include_detv and cuts is None:
         raise ValueError(
-            "'detv' requested in uncertainty_keys, but no cuts= (or "
-            "select_kwargs=) was given.\n\n"
+            "'detv' requested in uncertainty_keys, but no cuts= was given.\n\n"
             "reco_df has presumably already been filtered down to your "
             "analysis selection before it got here. The detector-variation "
             "comparison samples have NOT -- they get filtered separately, "
-            "right here inside get_total_cov, via cuts=/select_kwargs=. "
-            "Skip this and you're comparing a selected sample (yours) "
-            "against an unselected one (detvar's), which inflates the "
+            "right here inside get_total_cov, via cuts= (select_kwargs= alone "
+            "is not enough -- it's only applied together with cuts=, never on "
+            "its own). Skip this and you're comparing a selected sample "
+            "(yours) against an unselected one (detvar's), which inflates the "
             "'detv' uncertainty for no physical reason.\n\n"
             "Fix: pass the same cuts you used to build reco_df, "
             "e.g. cuts=your_village.DEFAULT_CUTS (whatever cut list you "
             "loaded your dataframes with)."
         )
     resolved_intime_cuts = intime_cuts if intime_cuts is not None else cuts
-    if include_cosmic and resolved_intime_cuts is None and not select_kwargs:
+    if include_cosmic and resolved_intime_cuts is None:
         raise ValueError(
             "'cosmic' requested in uncertainty_keys, but no cuts=/"
-            "intime_cuts= (or select_kwargs=) was given.\n\n"
+            "intime_cuts= was given.\n\n"
             "Same issue as the 'detv' case above: the in-time-cosmic "
             "sample gets filtered separately, right here, and needs the "
             "same selection as reco_df -- otherwise you're comparing "
             "mismatched populations.\n\n"
             "Fix: pass cuts= (or intime_cuts= if the in-time sample needs "
-            "a different selection than reco_df), or select_kwargs=."
+            "a different selection than reco_df)."
         )
 
     if include_detv and detvar_dict is None:
@@ -535,6 +536,24 @@ def get_total_cov(reco_df, reco_var, bins, mcbnb_pot,
         print(f"  Loaded {len(detvar_dict)} detector variation entries")
 
     sorted_df = apply_event_mask(ensure_lexsorted(reco_df, axis=1), event_type)
+
+    if include_detv and cuts is not None and not select_kwargs:
+        _cuts_check_df = select(sorted_df, cuts=cuts, savedict=False, check_preprocessed=False)
+        if len(_cuts_check_df) != len(sorted_df):
+            raise ValueError(
+                "'detv' requested, but applying cuts= to reco_df removes rows "
+                f"({len(sorted_df)} -> {len(_cuts_check_df)}).\n\n"
+                "reco_df is presumed to already be selected with exactly these "
+                "cuts -- that's what makes the detector-variation comparison "
+                "population-consistent (see the cuts=None error above for why). "
+                "If cuts= here actually narrows reco_df further, it doesn't "
+                "match what reco_df was loaded/selected with, and the detvar "
+                "comparison would run on a different population than your real "
+                "analysis sample.\n\n"
+                "Fix: pass the exact same cuts you used to build reco_df, not "
+                "a different or stricter list."
+            )
+
     _fpw = flux_pot_weights(sorted_df, mcbnb_pot, integrated_flux)
     rate_hist_cv = get_hist1d(data=sorted_df[reco_var], weights=_fpw, bins=bins)
     signal_mask = sorted_df.signal == 0

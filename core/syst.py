@@ -497,12 +497,14 @@ def get_detvar_systs(detvar_dict, var, bins,
         Event mask applied after selection (see :func:`~cafpybara.core.utils.apply_event_mask`).
     cuts : list of CutSpec, optional
         Custom cut sequence forwarded to :func:`~cafpybara.core.selection.select`.
-        Defaults to ``DEFAULT_CUTS`` when None. Build custom lists with
+        No default -- when None, the CV/DV samples are used exactly as loaded
+        from ``detvar_dict``, unfiltered by this call. Build custom lists with
         :func:`~cafpybara.core.selection.modify_cut`, :func:`~cafpybara.core.selection.drop_cuts`,
         or :class:`~cafpybara.core.selection.CutSpec`.
     **select_kwargs
         Additional keyword arguments forwarded to :func:`~cafpybara.core.selection.select`
-        (e.g. ``stage``, ``spring``, ``shower_scale``).
+        (e.g. ``stage``, ``spring``, ``shower_scale``). Only applied when
+        ``cuts`` is also given -- see ``cuts`` above.
 
     Returns
     -------
@@ -519,7 +521,7 @@ def get_detvar_systs(detvar_dict, var, bins,
     If ``this_dict['dv_df']`` is a single DataFrame the variation is treated as
     a unisim; if it is a list of DataFrames it is treated as a multisim.
     """
-    _needs_select = cuts is not None or bool(select_kwargs)
+    _needs_select = cuts is not None
     if _needs_select: print("Applying selection to detector variation samples...")
     _sel_kw = dict(savedict=False, cuts=cuts, **select_kwargs)
 
