@@ -125,10 +125,9 @@ default** — a new analysis supplies its own by wrapping the relevant
   `detvar_dict`/`detvar_files` and `uncertainty_keys`; raise on `'cosmic'`
   if no real in-time-cosmic sample exists. No `get_total_cov` override —
   `core.funcs.get_total_cov` is the only one.
-- **`core/detvar/process_detvars.py`** — a new dict key or `elif` branch
-  in each of `_SLC_KEY`, `_default_preprocess_fn`, `_selection_fn_map`,
-  keyed/matched by the new analysis's name. The one place in `core/` that
-  legitimately needs an edit.
+- **`detvar.py`** — `SLC_KEY`, `DEFAULT_PREPROCESS_FN`, `SELECTION_FN_MAP`,
+  discovered by `core/detvar/process_detvars.py` via
+  `analyses/<name>/detvar.py`. No `core/` edit needed.
 - **`__init__.py`** — `from ...core.<module> import *` for every `core`
   submodule, *before* this analysis's own `from .<module> import *` lines.
   Listed last since it re-exports everything above.

@@ -13,9 +13,10 @@ to the DV set automatically.
 
 Unlike the original nueCC-only version, this script has no default topology
 -- pass ``--analysis nuecc`` or ``--analysis hnlpi0`` to select which
-analysis's ``slc_key``/preprocessing/selection presets to use. A future
-analysis just needs `select`/`select_sideband`/`preprocess_mc` (or
-equivalents) importable the same way.
+analysis's ``slc_key``/preprocessing/selection presets to use. Each
+analysis declares those in its own ``analyses/<name>/detvar.py``
+(``SLC_KEY``, ``DEFAULT_PREPROCESS_FN``, ``SELECTION_FN_MAP``) -- a future
+analysis just needs that same file, no edit to this script.
 
 Selection types
 ---------------
@@ -72,43 +73,27 @@ _DETVAR_RE = re.compile(r'^detvar_(.+)_(\d+)\.df$')
 
 _UNSET = object()
 
-_SLC_KEY = {
-    "nuecc":  "nuecc",
-    "hnlpi0": "rec",
-}
 
+def _load_detvar_module(name):
+    """Load analyses.<name>.detvar -- the per-analysis SLC_KEY/DEFAULT_PREPROCESS_FN/
+    SELECTION_FN_MAP contract this script discovers instead of hardcoding.
 
-def _load_analysis(name):
-    return importlib.import_module(f"cafpybara.analyses.{name}")
-
-
-def _default_preprocess_fn(analysis_name, analysis):
-    if analysis_name == "nuecc":
-        return analysis.preprocess.preprocess_mc
-    if analysis_name == "hnlpi0":
-        return analysis.preprocess.preprocess_mcbnb
-    raise ValueError(f"No default preprocess_fn known for analysis '{analysis_name}'")
-
-
-def _selection_fn_map(analysis_name, analysis):
-    """Map selection-type name -> (cuts, stage). 'preprocess' is always (None, None).
-
-    Resolves each analysis's real cut lists explicitly here, rather than
-    going through an analysis-level select() wrapper's own cuts=None
-    defaulting -- so the exact resolved cut-name list used to build each
-    store is known at this call site, which is what gets stamped into the
-    store as cuts_signature below (lets get_detvar_systs later detect
-    store/cuts drift, e.g. a cut's definition changing after the store was
-    built).
+    SELECTION_FN_MAP resolves each analysis's real cut lists explicitly,
+    rather than going through an analysis-level select() wrapper's own
+    cuts=None defaulting -- so the exact resolved cut-name list used to
+    build each store is known at this call site, which is what gets
+    stamped into the store as cuts_signature below (lets get_detvar_systs
+    later detect store/cuts drift, e.g. a cut's definition changing after
+    the store was built).
     """
-    out = {"preprocess": (None, None)}
-    if analysis_name == "nuecc":
-        out["signal"]    = (analysis.DEFAULT_CUTS, None)
-        out["sideband"]  = (analysis.SIDEBAND_CUTS, None)
-        out["preselect"] = (analysis.DEFAULT_CUTS, "shower_energy")
-    elif analysis_name == "hnlpi0":
-        out["1shw"] = (analysis.PI0_CUT_LISTS['1shw'], None)
-    return out
+    try:
+        return importlib.import_module(f"cafpybara.analyses.{name}.detvar")
+    except ModuleNotFoundError as e:
+        sys.exit(
+            f"ERROR: analyses.{name} has no detvar.py -- see "
+            f"_template/detvar.py for the required SLC_KEY/"
+            f"DEFAULT_PREPROCESS_FN/SELECTION_FN_MAP contract.\n({e})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +135,7 @@ def _parse_detvar_files(input_dir: str) -> tuple[dict, dict]:
 # Dict builders
 # ---------------------------------------------------------------------------
 
-def build_dicts(input_dir: str, analysis, analysis_name: str, cv_key: str | None = None,
+def build_dicts(input_dir: str, detvar_mod, cv_key: str | None = None,
                  slc_key: str | None = None, preprocess_fn=_UNSET):
     """Load all CV and DV files; attach recombination detvars.
 
@@ -158,22 +143,22 @@ def build_dicts(input_dir: str, analysis, analysis_name: str, cv_key: str | None
     ----------
     input_dir : str
         Directory containing detvar_<name>_<idx>.df files.
-    analysis : module
-        The imported `cafpybara.analyses.<name>` module.
-    analysis_name : str
-        Name of the analysis (e.g. 'nuecc', 'hnlpi0') -- used to resolve the
-        default slc_key/preprocess_fn if not given explicitly.
+    detvar_mod : module
+        The imported `cafpybara.analyses.<name>.detvar` module (see
+        `_load_detvar_module`) -- used to resolve the default
+        slc_key/preprocess_fn if not given explicitly.
     cv_key : str, optional
         Key of the CV used as the reference for DV matching and recombination
         variations.  Defaults to the lexicographically first CV key found.
     slc_key : str, optional
         Table key for the slice-level analysis DataFrame within each raw
-        ``.df`` file. Defaults to ``_SLC_KEY[analysis_name]``.
+        ``.df`` file. Defaults to ``detvar_mod.SLC_KEY``.
     preprocess_fn : callable or None, optional
         Called as ``preprocess_fn(slc_df)`` on each CV/DV's slice-level table
         before it's stored. Defaults to the analysis's own base MC
-        preprocessing function. Pass an explicit callable to override, or
-        ``None`` to force-skip preprocessing.
+        preprocessing function (``detvar_mod.DEFAULT_PREPROCESS_FN``). Pass
+        an explicit callable to override, or ``None`` to force-skip
+        preprocessing.
 
     Returns
     -------
@@ -196,9 +181,9 @@ def build_dicts(input_dir: str, analysis, analysis_name: str, cv_key: str | None
         )
 
     if slc_key is None:
-        slc_key = _SLC_KEY[analysis_name]
+        slc_key = detvar_mod.SLC_KEY
     if preprocess_fn is _UNSET:
-        preprocess_fn = _default_preprocess_fn(analysis_name, analysis)
+        preprocess_fn = detvar_mod.DEFAULT_PREPROCESS_FN
 
     def _load_preprocessed(path):
         dvf = core_detvar.prepare_detvar_df(path, slc_key=slc_key)
@@ -250,8 +235,10 @@ def main():
     parser.add_argument(
         "--analysis",
         required=True,
-        choices=sorted(_SLC_KEY),
-        help="Which cafpybara.analyses analysis to build the store for.",
+        help=(
+            "Which cafpybara.analyses analysis to build the store for -- "
+            "must have its own analyses/<name>/detvar.py."
+        ),
     )
     parser.add_argument(
         "-i", "--input-dir",
@@ -292,8 +279,8 @@ def main():
         default=None,
         help=(
             "Table key for the slice-level analysis DataFrame within each raw "
-            "detvar_*.df file. Defaults to the analysis's own convention "
-            "('nuecc' for --analysis nuecc, 'rec' for --analysis hnlpi0)."
+            "detvar_*.df file. Defaults to the chosen analysis's own "
+            "detvar.py SLC_KEY."
         ),
     )
     parser.add_argument(
@@ -310,8 +297,8 @@ def main():
     )
     args = parser.parse_args()
 
-    analysis = _load_analysis(args.analysis)
-    selection_fn_map = _selection_fn_map(args.analysis, analysis)
+    detvar_mod = _load_detvar_module(args.analysis)
+    selection_fn_map = {"preprocess": (None, None), **detvar_mod.SELECTION_FN_MAP}
 
     selections = list(selection_fn_map) if "all" in args.selections else args.selections
     unsupported = set(selections) - set(selection_fn_map)
@@ -325,7 +312,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     cv_dict, dv_dict, cv_map = build_dicts(
-        args.input_dir, analysis, args.analysis, cv_key=args.cv_key, slc_key=args.slc_key,
+        args.input_dir, detvar_mod, cv_key=args.cv_key, slc_key=args.slc_key,
     )
     print(f"\nCV keys : {list(cv_dict.keys())}")
     print(f"DV keys : {list(dv_dict.keys())}")

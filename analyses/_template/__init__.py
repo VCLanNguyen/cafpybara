@@ -14,6 +14,7 @@ from ...core.preprocess import *
 from ...core.detvar import *
 
 from . import config
+from . import detvar
 from .analysis import *
 from .preprocess import *
 from .io import *
