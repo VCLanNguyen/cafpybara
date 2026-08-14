@@ -1,8 +1,8 @@
 """TEMPLATE -- your analysis's own SystematicsInput factory.
 
 Do NOT define your own `get_total_cov` here. `core.funcs.get_total_cov` is
-the single real implementation for every analysis -- this file's only job
-is `systs_input()`, a factory that fully resolves every real default into
+the single implementation for every analysis -- this file's only job
+is `systs_input()`, a factory that fully resolves every default into
 a concrete value before anything reaches `core`.
 """
 
@@ -30,12 +30,12 @@ def systs_input(mcbnb_pot, *, cuts=None, uncertainty_keys=None, **kwargs):
     detvar_dict = kwargs.pop('detvar_dict', None)
     detvar_files = kwargs.pop('detvar_files', None)
     if detvar_dict is None and detvar_files is None:
-        # TODO: set your real detvar_dict/detvar_files default.
+        # TODO: set your detvar_dict/detvar_files default.
         detvar_files = config.DETVAR_DICT_FILES
 
     kwargs.setdefault('define_signal_fn', define_signal)
 
-    # TODO: if you have a real in-time-cosmic sample, default
+    # TODO: if you have an in-time-cosmic sample, default
     # intime_file/intime_key/offbeam_value/intime_preprocess_fn here and
     # add 'cosmic' to the default uncertainty_keys below. Otherwise keep
     # this raise.

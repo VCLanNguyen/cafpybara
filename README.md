@@ -83,9 +83,9 @@ non-functional scaffold with the required files
 obviously-broken placeholder rather than a real value copied from another
 analysis. Copy it to `cafpybara/analyses/<name>/` and fill in the `# TODO`s.
 
-[`analyses/_template/examples/build_a_new_analysis.ipynb`](analyses/_template/examples/build_a_new_analysis.ipynb)
-walks through each file in write order, citing the real bug that shaped it.
-No real Fermilab/EAF data needed to run it.
+[`analyses/_template/instructions/`](analyses/_template/instructions/)
+walks through each file, in a series of notebooks. No real Fermilab/EAF
+data needed to run them.
 
 Before shipping it, run `python scripts/verify_new_analysis.py <name>` — a
 structural conformance check (no real data needed) covering re-export

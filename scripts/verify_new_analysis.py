@@ -2,7 +2,7 @@
 """Structural conformance check for an analysis under cafpybara/analyses/.
 
 Formalizes the manual `conformance_check()` from
-`analyses/_template/examples/build_a_new_analysis.ipynb` into a standalone,
+`analyses/_template/instructions/step3_systematics_and_detvar.ipynb` into a standalone,
 reusable script, and extends it with two checks that notebook only covers
 by hand. Every check here is purely structural (module attributes,
 function/dataclass signatures, notebook source via ast) -- no real data,
@@ -33,7 +33,8 @@ What this catches (checks 1-2 mirror the notebook's conformance_check();
      bundler (the original, most consequential bug found this way: nueCC's
      own load_mc/load_data, then hnlpi0.load_mchnl, were each
      independently found wired to the no-op).
-  4. ast-parses every notebook under analyses/<name>/examples/ and checks
+  4. ast-parses every notebook under analyses/<name>/examples/ (or
+     instructions/) and checks
      every keyword argument to <alias>.systs_input(...)/SystematicsInput(
      ...)/PlottingConfig(...) against the real parameter/field names --
      catches a dead kwarg surviving a signature change (e.g. the
@@ -280,7 +281,9 @@ def check_notebooks(name, analysis_module):
     print("-- Check 4: notebook SystematicsInput/PlottingConfig kwargs --")
     examples_dir = ANALYSES_DIR / name / 'examples'
     if not examples_dir.is_dir():
-        info(f"no examples/ directory for '{name}', skipping")
+        examples_dir = ANALYSES_DIR / name / 'instructions'
+    if not examples_dir.is_dir():
+        info(f"no examples/ or instructions/ directory for '{name}', skipping")
         return
     valid_kwargs = valid_kwargs_for(name, analysis_module)
     notebooks = sorted(examples_dir.glob('*.ipynb'))

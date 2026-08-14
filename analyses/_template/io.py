@@ -3,7 +3,7 @@
 Pre-fills :func:`cafpybara.core.io.load_mc`/``load_data`` (which have NO
 default `rec_key`/`preprocess_fn`/`define_signal_fn` -- those are required,
 on purpose, so a new analysis can't accidentally inherit another
-topology's values) with this analysis's own real defaults.
+topology's values) with this analysis's own defaults.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from functools import partial
 
 from ...core.io import load_mc as _core_load_mc, load_data as _core_load_data
 from .analysis import define_signal
-from .preprocess import preprocess_mc_real, preprocess_data_real
+from .preprocess import preprocess_mc, preprocess_data
 
 __all__ = ['load_mc', 'load_data']
 
@@ -28,7 +28,7 @@ def load_mc(
     max_splits: int | None = None,
     chunk_splits: int = 1,
     rec_key: str = REC_KEY,
-    preprocess_fn=preprocess_mc_real,
+    preprocess_fn=preprocess_mc,
     define_signal_fn=_define_signal_fn,
 ):
     """Load an MC HDF5 file. See :func:`cafpybara.core.io.load_mc` for full docs."""
@@ -44,7 +44,7 @@ def load_data(
     onbeam: bool = True,
     cuts=None,
     rec_key: str = REC_KEY,
-    preprocess_fn=preprocess_data_real,
+    preprocess_fn=preprocess_data,
 ):
     """Load a data HDF5 file. See :func:`cafpybara.core.io.load_data` for full docs."""
     return _core_load_data(

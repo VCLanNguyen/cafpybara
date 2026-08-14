@@ -452,7 +452,7 @@ def add_pi0(df: pd.DataFrame) -> pd.DataFrame:
 # Derived kinematic variables (topology-agnostic)
 # ---------------------------------------------------------------------------
 
-def add_variables(df: pd.DataFrame, beam_x: float = -74.0, beam_y: float = 0.0) -> pd.DataFrame:
+def add_variables(df: pd.DataFrame) -> pd.DataFrame:
     """Add derived kinematic columns to a slice-level DataFrame from make_topo_df.
 
     Unlike the fixes above, this only ever touches primshw/secshw shower columns
@@ -468,16 +468,12 @@ def add_variables(df: pd.DataFrame, beam_x: float = -74.0, beam_y: float = 0.0) 
     makedf/make_hnldf.py's own add_variables()) already computes identical values for
     these at df-production time, confirmed present on the raw loaded DataFrame.
     Recomputing them here would be a harmless but wasted duplicate (same formula, same
-    inputs). See the commented-out code below if a future 'rec' source ever lacks them.
+    inputs).
 
     Parameters
     ----------
     df : pd.DataFrame
         Slice-level DataFrame produced by topology.make_topo_df.
-    beam_x, beam_y : float
-        Beam centre x and y position [cm]. Default: (-74, 0). Unused now that the
-        transverse_distance_beam_2 block below is commented out; kept in the
-        signature so call sites don't need to change if it's reinstated.
 
     Returns
     -------
