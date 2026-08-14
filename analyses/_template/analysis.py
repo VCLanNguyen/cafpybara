@@ -37,20 +37,6 @@ signal_dict = {k: v["value"] for k, v in signal_categories.items()}
 
 
 # ---------------------------------------------------------------------------
-# Cut sequence
-# ---------------------------------------------------------------------------
-
-# TODO: set your cut sequence (CutSpec: threshold `variable=`/`min=`/
-# `max=`, or a full `fn=` mask).
-DEFAULT_CUTS = [
-    CutSpec("example_threshold_cut", variable=("slc", "example_score"), min=0.5,
-            label="example_score > 0.5"),
-    CutSpec("example_fn_cut", fn=lambda df: df.slc.n_trks == 0,
-            label="no reconstructed tracks"),
-]
-
-
-# ---------------------------------------------------------------------------
 # Truth categorisation
 # ---------------------------------------------------------------------------
 
@@ -69,3 +55,17 @@ def define_signal(indf: pd.DataFrame, prefix=None) -> pd.DataFrame:
     # signal[some_signal_condition] = signal_dict["signal"]
     nudf["signal"] = signal
     return nudf
+
+
+# ---------------------------------------------------------------------------
+# Cut sequence
+# ---------------------------------------------------------------------------
+
+# TODO: set your cut sequence (CutSpec: threshold `variable=`/`min=`/
+# `max=`, or a full `fn=` mask).
+DEFAULT_CUTS = [
+    CutSpec("example_threshold_cut", variable=("slc", "example_score"), min=0.5,
+            label="example_score > 0.5"),
+    CutSpec("example_fn_cut", fn=lambda df: df.slc.n_trks == 0,
+            label="no reconstructed tracks"),
+]
