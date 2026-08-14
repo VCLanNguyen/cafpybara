@@ -2,7 +2,7 @@
 """Structural conformance check for an analysis under cafpybara/analyses/.
 
 Formalizes the manual `conformance_check()` from
-`analyses/_template/instructions/step3_systematics_and_detvar.ipynb` into a standalone,
+`analyses/_template/instructions/step4_add_detvar_systematics.ipynb` into a standalone,
 reusable script, and extends it with two checks that notebook only covers
 by hand. Every check here is purely structural (module attributes,
 function/dataclass signatures, notebook source via ast) -- no real data,
