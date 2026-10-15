@@ -18,6 +18,7 @@ from ...core.selection import select
 
 __all__ = [
     'signal_categories', 'signal_dict', 'DEFAULT_CUTS', 'define_signal',
+    'define_signal_hnl',
 ]
 
 
@@ -55,6 +56,15 @@ def define_signal(indf: pd.DataFrame, prefix=None) -> pd.DataFrame:
     # signal[some_signal_condition] = signal_dict["signal"]
     nudf["signal"] = signal
     return nudf
+
+
+def define_signal_hnl(indf: pd.DataFrame) -> pd.DataFrame:
+    """TEMPLATE (optional, MeVPrtl/HNL sample only) -- stamp every row as signal.
+
+    TODO: delete if your analysis has no MeVPrtl sample.
+    """
+    indf["signal"] = signal_dict["signal"]
+    return indf
 
 
 # ---------------------------------------------------------------------------

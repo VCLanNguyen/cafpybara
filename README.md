@@ -10,14 +10,17 @@ CAF ntuples into flat HDF5 dataframes.
 1. Get a `cafpyana` clone with dataframes already produced (see its own
    README). `cafpybara` reads dataframes, it doesn't make them.
 2. Clone this repo anywhere — it doesn't need to sit next to `cafpyana`.
-3. Point `CAFPYANA_PATH` in `cafpybara/__init__.py` at your `cafpyana`
-   clone:
-   ```python
-   CAFPYANA_PATH = "/path/to/your/cafpyana"
+3. Set the `CAFPYANA_PATH` environment variable to your `cafpyana` clone
+   (required -- `import cafpybara` raises without it):
+   ```bash
+   export CAFPYANA_PATH=/path/to/your/cafpyana   # e.g. in ~/.bashrc
    ```
-   The repo's one hardcoded path — `cafpybara` auto-adds it to `sys.path`,
-   so imports like `from makedf.util import InFV` resolve without a manual
-   `PYTHONPATH`.
+   or, in a notebook, before importing `cafpybara`:
+   ```python
+   os.environ["CAFPYANA_PATH"] = "/path/to/your/cafpyana"
+   ```
+   `cafpybara` adds it to `sys.path`, so imports like
+   `from makedf.util import InFV` resolve without a manual `PYTHONPATH`.
 4. Install dependencies from `pip_requirements.txt` (numpy, pandas,
    matplotlib, scikit-learn, xgboost, pyhf, etc — versions confirmed
    working on EAF's `venv_eaf` kernel as of 2026-07-14).

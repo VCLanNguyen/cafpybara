@@ -11,9 +11,16 @@ Adding a new analysis topology means adding a new folder under
 no shared registry or base class to edit.
 """
 
+import os
 import sys
 
-CAFPYANA_PATH = "/exp/sbnd/data/users/lnguyen/cafpyana_pi0/cafpyana"
+CAFPYANA_PATH = os.environ.get("CAFPYANA_PATH")
+if not CAFPYANA_PATH or not os.path.isdir(CAFPYANA_PATH):
+    raise ImportError(
+        f"CAFPYANA_PATH={CAFPYANA_PATH!r} is unset or not a directory -- "
+        "export it (or set os.environ['CAFPYANA_PATH'] before importing "
+        "cafpybara) to point at your cafpyana clone."
+    )
 
 if CAFPYANA_PATH not in sys.path:
     sys.path.append(CAFPYANA_PATH)

@@ -14,7 +14,7 @@ from ...core.preprocess import (
     preprocess_data as _core_preprocess_data,
 )
 
-__all__ = ['preprocess_mc', 'preprocess_data']
+__all__ = ['preprocess_mc', 'preprocess_data', 'preprocess_mchnl']
 
 
 def preprocess_mc(df: pd.DataFrame) -> pd.DataFrame:
@@ -32,4 +32,14 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     TODO: add your fixes (e.g. data-only timing calibration).
     """
     df = _core_preprocess_data(df)
+    return df
+
+
+def preprocess_mchnl(df: pd.DataFrame) -> pd.DataFrame:
+    """TEMPLATE (optional, MeVPrtl/HNL sample only) -- MeVPrtl MC preprocessing.
+
+    TODO: add your MeVPrtl-specific fixes (e.g. generator timing calibration),
+    or delete if your analysis has no MeVPrtl sample.
+    """
+    df = _core_preprocess_mc(df)
     return df

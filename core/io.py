@@ -1,7 +1,8 @@
 """File input/output utilities for loading HDF5 data files.
 
 ``load_mc``/``load_data`` here take no topology default for ``rec_key``,
-``preprocess_fn``, or ``define_signal_fn``/``offbeam_signal_value`` -- every
+``preprocess_fn``, or ``define_signal_fn``/``offbeam_signal_value`` (nor does
+``load_mevprtl``) -- every
 analysis supplies its own via a thin wrapper in
 ``cafpybara/analyses/<topology>/io.py`` (e.g. nueCC's wrapper defaults
 ``rec_key='nuecc'``; HNL/pi0's defaults ``rec_key='rec'``).
@@ -13,7 +14,8 @@ import gc
 import numpy as np
 import pandas as pd
 
-__all__ = ['get_n_split', 'print_keys', 'load_dfs', 'load_mc', 'load_data']
+__all__ = ['get_n_split', 'print_keys', 'load_dfs', 'load_mc', 'load_data',
+           'correct_cosmic_weight_mevprtl_df', 'load_mevprtl']
 
 _UNSET = object()
 
@@ -273,3 +275,159 @@ def load_data(
 
     sel = select(df, cuts=cuts) if cuts is not None else df
     return sel, pot, ngates
+
+
+# ---------------------------------------------------------------------------
+# MeVPrtl (e.g. HNL) generator samples
+# ---------------------------------------------------------------------------
+
+def correct_cosmic_weight_mevprtl_df(indf_rec, indf_truth, indf_hdr):
+    """Correct the cosmic-background event weight in an HNL MeVPrtl reco DataFrame
+    using the matching truth-level total weight.
+
+    Reco and truth don't share a common natural row index -- their sub-object index
+    levels differ (``rec.slc..index`` vs. ``rec.mc.prtl..index``) -- so they're joined
+    via a composite key built from ``evt`` (looked up per-row from the header table)
+    instead of the natural index.
+
+    When present, ``file_idx`` is included in that composite key alongside
+    ``(__ntuple, entry, evt)``. This matters for any file produced by
+    ``concat_hdf.py``: it resets ``__ntuple``/``entry`` numbering independently per
+    source shard and adds a ``file_idx`` level specifically to disambiguate the
+    result, so omitting ``file_idx`` from the join key causes rows from different
+    shards to collide on the same ``(__ntuple, entry, evt)`` triple -- ``reindex``
+    then raises ``ValueError: cannot handle a non-unique multi-index`` . Falls back to the
+    ``(__ntuple, entry, evt)``-only key when ``file_idx`` isn't present on either
+    side, matching the original behaviour for a raw, non-concatenated single-shard
+    file.
+
+    Parameters
+    ----------
+    indf_rec : pd.DataFrame
+        HNL reco (slice-level) DataFrame.
+    indf_truth : pd.DataFrame
+        HNL MeVPrtl truth DataFrame.
+    indf_hdr : pd.DataFrame
+        Header DataFrame, used to look up ``evt`` for both ``indf_rec`` and
+        ``indf_truth``.
+    """
+
+
+    fluxw_column = ('slc', 'prtl', 'flux_weight', '', '', '')
+    rayw_column = ('slc', 'prtl', 'ray_weight', '', '', '')
+    decayw_column = ('slc', 'prtl', 'decay_weight', '', '', '')
+    totalw_column = ('weights_mc', '', '', '', '', '')
+    indf_rec[totalw_column] = indf_rec[rayw_column] * indf_rec[decayw_column] * indf_rec[fluxw_column]
+
+    truth_fluxw_column = ('flux_weight', '')
+    truth_rayw_column = ('ray_weight', '')
+    truth_decayw_column = ('decay_weight', '')
+    truth_totalw_column = ('weights_mc_truth', '')
+    indf_truth[truth_totalw_column] = indf_truth[truth_rayw_column] * indf_truth[truth_decayw_column] * indf_truth[truth_fluxw_column]
+
+    evt_col = ('evt', '', '', '', '', '')
+    indf_rec[evt_col] = indf_hdr['evt'].reindex(indf_rec.index)
+
+    totalw_truth_col = ('weights_mc_truth', '', '', '', '', '')
+
+    truth_total_weight = indf_truth[truth_totalw_column]
+    truth_evt = indf_hdr['evt'].reindex(indf_truth.index).values
+
+    join_levels = ['__ntuple', 'entry']
+    if 'file_idx' in indf_truth.index.names and 'file_idx' in indf_rec.index.names:
+        join_levels = ['file_idx'] + join_levels
+    join_names = join_levels + ['evt']
+
+    truth_key = pd.MultiIndex.from_arrays(
+        [indf_truth.index.get_level_values(lvl) for lvl in join_levels] + [truth_evt],
+        names=join_names,
+    )
+    truth_lookup = pd.Series(truth_total_weight.values, index=truth_key)
+
+    reco_key = pd.MultiIndex.from_arrays(
+        [indf_rec.index.get_level_values(lvl) for lvl in join_levels] + [indf_rec[evt_col].values],
+        names=join_names,
+    )
+
+    indf_rec[totalw_truth_col] = reco_key.map(truth_lookup)
+
+
+    mask_cosmic = np.isnan(indf_rec[('slc', 'prtl', 'E', '', '', '')])
+    indf_rec.loc[mask_cosmic, totalw_column] = indf_rec.loc[mask_cosmic, truth_totalw_column]
+
+    indf_rec = indf_rec.drop(columns=[evt_col])
+
+    return indf_rec
+
+
+def load_mevprtl(
+    file: str,
+    rec_key: str,
+    preprocess_fn,
+    define_signal_fn,
+    keys: list | None = None,
+    mevprtl_key: str = 'mevprtl',
+    cuts=None,
+) -> tuple:
+    """Load, preprocess, and optionally select a MeVPrtl-generator MC HDF5 file.
+
+    Applies the MeVPrtl cosmic-weight correction
+    (:func:`correct_cosmic_weight_mevprtl_df`), stamps signal categories, and
+    merges header columns in. Also extracts the simulated mixing angle and
+    particle mass from the truth table.
+
+    Parameters
+    ----------
+    file : str
+        Path to the HDF5 file.
+    rec_key : str
+        Key of the main slc-level table. Required -- no topology default here.
+    preprocess_fn : callable or None
+        Called as ``preprocess_fn(df)`` on the raw ``rec_key`` table before the
+        cosmic-weight correction. Pass ``None`` to skip. Required (explicitly,
+        even if None) -- no topology default here.
+    define_signal_fn : callable
+        Called as ``define_signal_fn(df)`` to stamp signal categories.
+        Required -- no topology default here.
+    keys : list of str, optional
+        Table keys to load, not including ``mevprtl_key`` (added automatically
+        if missing). Defaults to ``['hdr', rec_key, 'histpotdf']``.
+    mevprtl_key : str, default 'mevprtl'
+        Key of the MeVPrtl truth table.
+    cuts : list of CutSpec, optional
+        If supplied, passed to :func:`~cafpybara.core.selection.select` as the
+        last step, after ``simU``/``hnlM`` are extracted from the full
+        (unselected) DataFrame -- selection can otherwise remove every
+        truth-matched row and make that extraction raise. When None the full
+        preprocessed DataFrame is returned.
+
+    Returns
+    -------
+    df : pd.DataFrame
+        Preprocessed (and optionally selected) DataFrame with header columns
+        merged in and signal categories defined.
+    pot : float
+        MC POT (unscaled).
+    info : dict
+        ``{'simU': ..., 'hnlM': ...}`` -- simulated mixing angle squared and
+        mass in MeV (converted from the truth table's GeV).
+    """
+    from .selection import select
+    from .utils import merge_hdr
+
+    if keys is None:
+        keys = ['hdr', rec_key, 'histpotdf']
+    load_keys = keys if mevprtl_key in keys else keys + [mevprtl_key]
+
+    dfs = load_dfs(file, keys2load=load_keys, n_max_concat=get_n_split(file))
+    rec_df = preprocess_fn(dfs[rec_key]) if preprocess_fn is not None else dfs[rec_key]
+    df  = correct_cosmic_weight_mevprtl_df(rec_df, dfs[mevprtl_key], dfs['hdr'])
+    df  = define_signal_fn(df)
+    df  = merge_hdr(dfs['hdr'], df)
+
+    pot  = dfs['histpotdf'].TotalPOT.sum() if 'histpotdf' in dfs else dfs['hdr'].pot.sum()
+    simU = df[('slc', 'prtl', 'C2', '', '', '')].dropna().unique()[0]
+    hnlM = df[('slc', 'prtl', 'M', '', '', '')].dropna().unique()[0] * 1000
+
+    sel = select(df, cuts=cuts) if cuts is not None else df
+    return sel, pot, {'simU': simU, 'hnlM': hnlM}

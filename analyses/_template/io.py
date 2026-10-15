@@ -1,4 +1,4 @@
-"""TEMPLATE -- your analysis's own load_mc()/load_data() convenience wrappers.
+"""TEMPLATE -- your analysis's own load_mc()/load_data()/load_mchnl() convenience wrappers.
 
 Pre-fills :func:`cafpybara.core.io.load_mc`/``load_data`` (which have NO
 default `rec_key`/`preprocess_fn`/`define_signal_fn` -- those are required,
@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from functools import partial
 
-from ...core.io import load_mc as _core_load_mc, load_data as _core_load_data
-from .analysis import define_signal
-from .preprocess import preprocess_mc, preprocess_data
+from ...core.io import (
+    load_mc as _core_load_mc, load_data as _core_load_data,
+    load_mevprtl as _core_load_mevprtl,
+)
+from .analysis import define_signal, define_signal_hnl
+from .preprocess import preprocess_mc, preprocess_data, preprocess_mchnl
 
-__all__ = ['load_mc', 'load_data']
+__all__ = ['load_mc', 'load_data', 'load_mchnl']
 
 # TODO: set your slc-level table key (e.g. 'rec', 'nuecc').
 REC_KEY = "TODO_SET_ME"
@@ -50,4 +53,24 @@ def load_data(
     return _core_load_data(
         file, rec_key=rec_key, preprocess_fn=preprocess_fn,
         keys=keys, onbeam=onbeam, cuts=cuts,
+    )
+
+
+def load_mchnl(
+    file: str,
+    keys: list | None = None,
+    mevprtl_key: str = 'mevprtl',
+    cuts=None,
+    rec_key: str = REC_KEY,
+    preprocess_fn=preprocess_mchnl,
+    define_signal_fn=define_signal_hnl,
+):
+    """Optional -- load a MeVPrtl (e.g. HNL) MC HDF5 file. See
+    :func:`cafpybara.core.io.load_mevprtl` for full docs.
+
+    TODO: delete if your analysis has no MeVPrtl sample.
+    """
+    return _core_load_mevprtl(
+        file, rec_key=rec_key, preprocess_fn=preprocess_fn, define_signal_fn=define_signal_fn,
+        keys=keys, mevprtl_key=mevprtl_key, cuts=cuts,
     )

@@ -7,7 +7,8 @@ reusable script, and extends it with two checks that notebook only covers
 by hand. Every check here is purely structural (module attributes,
 function/dataclass signatures, notebook source via ast) -- no real data,
 no Fermilab/EAF access needed. Run with the parent of `cafpybara/` on your
-PYTHONPATH, same requirement as every other script in this package.
+PYTHONPATH and `CAFPYANA_PATH` exported, same requirement as every other
+script in this package.
 
 Usage:
     python scripts/verify_new_analysis.py <name> [<name> ...]
@@ -173,6 +174,7 @@ NOOP_DEFAULT_CHECKS = {
     '_template': [
         ('io', 'load_mc', 'preprocess_fn', 'preprocess.preprocess_mc'),
         ('io', 'load_data', 'preprocess_fn', 'preprocess.preprocess_data'),
+        ('io', 'load_mchnl', 'preprocess_fn', 'preprocess.preprocess_mc'),
     ],
 }
 
