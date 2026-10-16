@@ -5,9 +5,9 @@ pdg_categories, mode_categories, category_dict_signal/control) already live
 in :mod:`cafpybara.core.physics` -- this file should hold only what's
 genuinely specific to your topology, the same split hnlpi0/nuecc use.
 
-Everything below is a TOY example -- it imports and runs (against a
-DataFrame with the right columns), but the actual column names/thresholds
-are illustrative. Replace with your topology's selection.
+`signal_categories`/`define_signal` below give the minimal real split
+every analysis needs (neutrino vs. cosmic); `DEFAULT_CUTS` starts empty.
+Add your own topology-specific categories/cuts on top.
 """
 
 import numpy as np
@@ -18,7 +18,6 @@ from ...core.selection import select
 
 __all__ = [
     'signal_categories', 'signal_dict', 'DEFAULT_CUTS', 'define_signal',
-    'define_signal_hnl',
 ]
 
 
@@ -29,10 +28,8 @@ __all__ = [
 # TODO: set your signal/background categories (unique 'value',
 # display 'label', plot 'color' per entry).
 signal_categories = {
-    "signal":  {"value": 0, "label": "Signal",       "color": "#E7004C"},
-    "other":   {"value": 1, "label": "Other",        "color": "#005A8F"},
-    "nonFV":   {"value": 2, "label": "Non-FV",        "color": "#FF9664"},
-    "cosmic":  {"value": 3, "label": "Cosmic",        "color": "#708090"},
+    "signal":  {"value": 0, "label": "Neutrino", "color": "#E7004C"},
+    "cosmic":  {"value": 1, "label": "Cosmic",   "color": "#708090"},
 }
 signal_dict = {k: v["value"] for k, v in signal_categories.items()}
 
@@ -44,27 +41,16 @@ signal_dict = {k: v["value"] for k, v in signal_categories.items()}
 def define_signal(indf: pd.DataFrame, prefix=None) -> pd.DataFrame:
     """TEMPLATE -- stamp a 'signal' column using `signal_dict` above.
 
-    TODO: set your truth-level categorisation logic.
+    TODO: split `signal_categories` further for your topology.
     """
     from ...core.utils import ensure_lexsorted
 
     nudf = ensure_lexsorted(ensure_lexsorted(indf, 0), 1)
     mcdf = nudf if prefix is None else nudf[prefix]
 
-    signal = np.full(len(nudf), signal_dict["other"], dtype=np.int16)
-    # TODO: conditions go here, e.g.:
-    # signal[some_signal_condition] = signal_dict["signal"]
-    nudf["signal"] = signal
+    is_cosmic = np.isnan(mcdf.E)
+    nudf["signal"] = np.where(is_cosmic, signal_dict["cosmic"], signal_dict["signal"]).astype(np.int16)
     return nudf
-
-
-def define_signal_hnl(indf: pd.DataFrame) -> pd.DataFrame:
-    """TEMPLATE (optional, MeVPrtl/HNL sample only) -- stamp every row as signal.
-
-    TODO: delete if your analysis has no MeVPrtl sample.
-    """
-    indf["signal"] = signal_dict["signal"]
-    return indf
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +60,8 @@ def define_signal_hnl(indf: pd.DataFrame) -> pd.DataFrame:
 # TODO: set your cut sequence (CutSpec: threshold `variable=`/`min=`/
 # `max=`, or a full `fn=` mask).
 DEFAULT_CUTS = [
-    CutSpec("example_threshold_cut", variable=("slc", "example_score"), min=0.5,
-            label="example_score > 0.5"),
-    CutSpec("example_fn_cut", fn=lambda df: df.slc.n_trks == 0,
-            label="no reconstructed tracks"),
+    CutSpec("clear_cosmic", fn=lambda df: df.slc.is_clear_cosmic == 0,
+            label="not clear cosmic"),
+    CutSpec("nu_score", variable=("slc", "nu_score"), min=0.5,
+            label="nu score > 0.5"),
 ]

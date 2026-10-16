@@ -1,4 +1,4 @@
-"""TEMPLATE -- your analysis's own plot_var()/plot_mc_data()/plot_mc_hnl() convenience wrappers.
+"""TEMPLATE -- your analysis's own plot_var()/plot_mc_data() convenience wrappers.
 
 Pre-fills :func:`cafpybara.core.plotting.plot_var` (and anything that calls
 it internally, e.g. `plot_mc_data`) with this analysis's own default
@@ -9,7 +9,7 @@ raises a clear error if one can't be resolved, on purpose.
 from ...core import plotting as _core_plotting
 from .analysis import signal_categories, signal_dict
 
-__all__ = ['plot_var', 'plot_mc_data', 'plot_mc_hnl']
+__all__ = ['plot_var', 'plot_mc_data']
 
 
 def _inject_defaults(kwargs):
@@ -37,12 +37,3 @@ def plot_mc_data(mc_df, data_df, var, bins, **kwargs):
     """
     kwargs = _inject_defaults(kwargs)
     return _core_plotting.plot_mc_data(mc_df, data_df, var, bins, **kwargs)
-
-
-def plot_mc_hnl(mc_df, hnl_df, var, bins, **kwargs):
-    """Optional -- MC stack + MeVPrtl (e.g. HNL) step overlay, no data.
-
-    See :func:`cafpybara.core.plotting.plot_mc_hnl` for the full parameter list.
-    """
-    kwargs = _inject_defaults(kwargs)
-    return _core_plotting.plot_mc_hnl(mc_df, hnl_df, var, bins, **kwargs)
