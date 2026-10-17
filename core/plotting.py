@@ -121,6 +121,16 @@ def plot_var(df: pd.DataFrame,
         x-values at which to draw vertical dashed cut lines.
     plot_err : bool, default True
         If True, draw MC error bands (stat and/or syst).
+    hist_filled : bool, default True
+        If True, draw each category as a filled stacked region (the usual MC
+        stack look). If False, draw unfilled step outlines instead -- used by
+        :func:`plot_mc_hnl`/:func:`plot_mc_hnl_data` to overlay a signal
+        sample as a step histogram on top of a filled background stack.
+    error_legend : bool, default True
+        If True, add the MC stat./syst. error band to the legend. If False,
+        still draw the band but omit its legend entry -- used by
+        :func:`plot_mc_hnl`/:func:`plot_mc_hnl_data` to avoid a duplicate
+        "MC stat." entry when overlaying two :func:`plot_var` calls on one axis.
     systs : True | SystematicsInput | SystematicsOutput | None, default None
         Controls how uncertainties are computed and displayed:
 
@@ -197,6 +207,8 @@ def plot_var(df: pd.DataFrame,
     legend_kwargs = _p.get('legend_kwargs', None)
     internal      = _p.get('internal', True)
     custom_cats   = _p.get('categories', None)
+    hist_filled   = _p.get('hist_filled', True)
+    error_legend  = _p.get('error_legend', True)
     if isinstance(df, pd.DataFrame):
         df = ensure_lexsorted(df, axis=0)
         df = ensure_lexsorted(df, axis=1)
@@ -383,6 +395,11 @@ def plot_var(df: pd.DataFrame,
         systs_err = systs_err / total_integral
         total_cov = total_cov / (total_integral ** 2)
         
+    # Step overlays (hist_filled=False, e.g. an HNL signal sample via plot_mc_hnl)
+    # must render above a filled background stack regardless of either call's own
+    # ncategories -- offset their zorder well clear of any realistic filled stack.
+    _z_offset = 0 if hist_filled else 1000
+
     for i, (key, entry) in enumerate(categories.items()):
         color      = entry["color"]
         plot_label = entry.get("label", key)
@@ -390,20 +407,20 @@ def plot_var(df: pd.DataFrame,
         if counts: plot_label += f" ({int(hist_counts[i]):,})" if hist_counts[i] < 1e6 else f"({hist_counts[i]:.2e}"
         if percents: plot_label += f" ({hist_counts[i]/np.sum(hist_counts)*100:.1f}%)"
         bottom=steps[i-1] if i>0 else 0
-        steps[i] = np.insert(hists[i],obj=0,values=hists[i][0]) + bottom; 
-        ax.fill_between(bins, bottom, steps[i], step="pre", 
-                         facecolor=mpl.colors.to_rgba(color,alpha),
-                         edgecolor=mpl.colors.to_rgba(color,1.0),  
-                         lw=1.5, 
-                         hatch=hatch[i],zorder=(ncategories-i),label=plot_label)
-    
+        steps[i] = np.insert(hists[i],obj=0,values=hists[i][0]) + bottom;
+        ax.fill_between(bins, bottom, steps[i], step="pre",
+                         facecolor=mpl.colors.to_rgba(color,alpha) if hist_filled else "none",
+                         edgecolor=mpl.colors.to_rgba(color,1.0),
+                         lw=1.5,
+                         hatch=hatch[i] if hist_filled else None,zorder=(ncategories-i)+_z_offset,label=plot_label)
+
     if plot_err:
         systs_options = {"step": "pre", "color": mpl.colors.to_rgba("gray", alpha=0.75),
                          "lw": 0.0, "facecolor": "none", "hatch": "xxx",
-                         "zorder": ncategories + 1}
+                         "zorder": ncategories + 1 + _z_offset}
         stats_options = {"step": "pre", "color": mpl.colors.to_rgba("gray", alpha=0.9),
                          "lw": 0.0, "facecolor": "none", "hatch": "....",
-                         "zorder": ncategories + 1}
+                         "zorder": ncategories + 1 + _z_offset}
 
         has_systs = np.any(systs_arr > 0)
         _systs = np.append(systs_err[0], systs_err)
@@ -414,13 +431,13 @@ def plot_var(df: pd.DataFrame,
             _combined = np.append(combined_err[0], combined_err)
             ax.fill_between(bins,
                             steps[-1] - _combined, steps[-1] + _combined,
-                            **systs_options, label="MC stat.+syst.")
+                            **systs_options, label="MC stat.+syst." if error_legend else None)
         else:
             ax.fill_between(bins,
                             steps[-1] - _stats, steps[-1] + _stats,
-                            **stats_options, label="MC stat.")
+                            **stats_options, label="MC stat." if error_legend else None)
 
-    cut_line_zorder = ncategories + 2
+    cut_line_zorder = ncategories + 2 + _z_offset
     if cut_val != None:
         for i in range(len(cut_val)):
             ax.axvline(cut_val[i],lw=2,color="gray",linestyle="--",zorder=cut_line_zorder)
