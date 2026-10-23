@@ -174,7 +174,8 @@ NOOP_DEFAULT_CHECKS = {
     '_template': [
         ('io', 'load_mc', 'preprocess_fn', 'preprocess.preprocess_mc'),
         ('io', 'load_data', 'preprocess_fn', 'preprocess.preprocess_data'),
-        ('io', 'load_mchnl', 'preprocess_fn', 'preprocess.preprocess_mc'),
+        # No load_mchnl entry here -- _template has no MeVPrtl/HNL wrapper by
+        # default (opt-in, see analyses/_template/io.py's module docstring).
     ],
 }
 
