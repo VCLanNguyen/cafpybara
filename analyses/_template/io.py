@@ -45,9 +45,10 @@ def load_data(
     cuts=None,
     rec_key: str = REC_KEY,
     preprocess_fn=preprocess_data,
+    offbeam_signal_value=None,
 ):
     """Load a data HDF5 file. See :func:`cafpybara.core.io.load_data` for full docs."""
     return _core_load_data(
         file, rec_key=rec_key, preprocess_fn=preprocess_fn,
-        keys=keys, onbeam=onbeam, cuts=cuts,
+        keys=keys, onbeam=onbeam, cuts=cuts, offbeam_signal_value=offbeam_signal_value,
     )
